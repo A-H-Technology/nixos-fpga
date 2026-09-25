@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # update.yml pushes with GITHUB_TOKEN, which never fires push/pull_request
+  # (GitHub's recursion guard), so it dispatches this workflow explicitly.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  statuses: write
+
+jobs:
+  # One leg per entry in checks.aarch64-linux, so adding a board to the flake is
+  # all it takes to get it built and cached.
+  matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      checks: ${{ steps.checks.outputs.checks }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+      - run: nix flake check --no-build --all-systems
+      - id: checks
+        run: echo "checks=$(nix eval --json .#checks.aarch64-linux --apply builtins.attrNames)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        check: ${{ fromJSON(needs.matrix.outputs.checks) }}
+    # Vendor kernels are never on cache.nixos.org, so each leg can be a full
+    # from-source kernel build; native ARM keeps that at ~25 min, not hours.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      # The runner's default free space doesn't fit a kernel build tree plus its
+      # closure; this hands the root fs to /nix and keeps 16G scratch for TMPDIR.
+      - uses: wimpysworld/nothing-but-nix@main
+        with:
+          root-safe-haven: 16384
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: cachix/cachix-action@v15
+        with:
+          name: nixos-fpga
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+      - run: nix build ".#checks.aarch64-linux.${{ matrix.check }}" --print-build-logs
+
+  # Dispatched runs don't attach checks to the PR on their own; post a status on
+  # the commit so the result shows up there, and merge what doesn't need a human.
+  report:
+    needs: [matrix, build]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Commit status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATE: ${{ (needs.matrix.result == 'success' && needs.build.result == 'success') && 'success' || 'failure' }}
+        run: |
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -f state="$STATE" -f context="CI" \
+            -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+      # CI proves a kernel builds, not that the board boots — no emulator models
+      # these SoCs. So only PRs that leave every kernel alone merge themselves;
+      # update.yml labels the rest needs-hardware-test and they wait for a flash.
+      - name: Auto-merge update PR
+        if: ${{ github.ref_name == 'update' && needs.matrix.result == 'success' && needs.build.result == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr=$(gh pr list -R "$GITHUB_REPOSITORY" --head update --state open --json number,labels \
+            --jq '.[] | select([.labels[].name] | index("needs-hardware-test") | not) | .number')
+          if [ -n "$pr" ]; then
+            gh pr merge -R "$GITHUB_REPOSITORY" "$pr" --squash --delete-branch
+          fi

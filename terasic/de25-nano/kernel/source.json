@@ -1,0 +1,8 @@
+{
+  "owner": "terasic",
+  "repo": "linux-socfpga",
+  "branch": "de25-nano-6.12.11-lts",
+  "rev": "d7d192a9ddd955fe206aa350afed8f82e368a74c",
+  "hash": "sha256-a2gTLTAaJ7wSetDDedq8ZEghbMEVawRnbXu1OotmaU8=",
+  "version": "6.12.11"
+}

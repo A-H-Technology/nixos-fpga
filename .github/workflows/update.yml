@@ -1,0 +1,80 @@
+name: Update
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+concurrency: update-pr
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DeterminateSystems/nix-installer-action@main
+        with:
+          extra-conf: access-tokens = github.com=${{ github.token }}
+
+      - name: Bump nixpkgs and every package with an updateScript
+        run: |
+          old_nixpkgs=$(jq -r .nodes.nixpkgs.locked.rev flake.lock)
+          nix flake update
+          new_nixpkgs=$(jq -r .nodes.nixpkgs.locked.rev flake.lock)
+          # The update scripts report on stderr: "<repo>@<branch>: old -> new"
+          # lines for moved pins, "NEW-BRANCH <name>" for vendor branches to
+          # consider by hand.
+          nix run .#update 2> >(tee update.log >&2)
+          {
+            echo "Automated \`nix flake update\` + \`nix run .#update\`."
+            echo
+            if [ "$old_nixpkgs" != "$new_nixpkgs" ]; then
+              echo "- nixpkgs: \`${old_nixpkgs:0:12}\` → \`${new_nixpkgs:0:12}\`"
+            fi
+            grep -- ' -> ' update.log | sed 's/^/- kernel: /' || true
+            if grep -q '^NEW-BRANCH ' update.log; then
+              echo
+              echo "Vendor branches not tracked yet (switching one is a manual, hardware-tested change):"
+              sed -n 's/^NEW-BRANCH /- `/p' update.log | sed 's/$/`/'
+            fi
+          } > pr-body.md
+          rm update.log
+
+      - name: Push update branch, ensure PR, trigger CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet; then
+            echo "Everything already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c update
+          git commit -am "update: nixpkgs and vendor pins ($(date -u +%F))"
+          git push -f origin update
+
+          pr=$(gh pr list --head update --state open --json number --jq '.[0].number')
+          if [ -z "$pr" ]; then
+            gh pr create --head update --title "Scheduled update" --body-file pr-body.md
+          else
+            gh pr edit "$pr" --body-file pr-body.md
+          fi
+
+          # A moved kernel can build fine and still not boot; ci.yml won't
+          # auto-merge while this label is on.
+          gh label create needs-hardware-test --color d93f0b \
+            --description "Moves a kernel or boot pin; flash and boot before merging" 2>/dev/null || true
+          if git diff --name-only HEAD~1 | grep -q '/kernel/source.json$'; then
+            gh pr edit update --add-label needs-hardware-test
+          else
+            gh pr edit update --remove-label needs-hardware-test 2>/dev/null || true
+          fi
+
+          gh workflow run ci.yml --ref update
