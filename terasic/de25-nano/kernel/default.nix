@@ -20,6 +20,19 @@
   # silently break module loading.
   source = lib.importJSON ./source.json;
 
+  # What linuxManualConfig would otherwise learn by reading `configfile` back
+  # through import-from-derivation (which needs an aarch64 builder just to
+  # *evaluate*, breaking `nix flake check` on x86). The source file is right
+  # here, so parse it purely instead; same regex as nixpkgs' readConfig, and the
+  # one sed below only touches LOCALVERSION_AUTO, which no eval decision reads.
+  config = lib.listToAttrs (lib.concatMap (line: let
+    m = lib.match "(CONFIG_[^=]+)=([ym])" line;
+  in
+    lib.optional (m != null) {
+      name = lib.elemAt m 0;
+      value = lib.elemAt m 1;
+    }) (lib.splitString "\n" (builtins.readFile ../firmware/kernel.config)));
+
   # Extracted verbatim from the running stock board via /proc/config.gz, so this
   # is the config Terasic actually validated rather than a reconstruction. Every
   # option NixOS requires (systemd's namespaces/seccomp/cgroups/tmpfs-ACL set) is
@@ -30,10 +43,6 @@
   # gives a tarball with no .git, so that suffix silently vanishes and stops
   # matching modDirVersion. Pin it off rather than encode a hash we can't
   # reproduce.
-  #
-  # Reads from the whole ../firmware directory rather than just the one file on
-  # purpose: that keeps this derivation byte-identical to the one the board was
-  # first brought up with, so moving it here cost no ~26 min ARM rebuild.
   configfile = runCommand "de25-nano-kernel.config" {} ''
     sed 's/^CONFIG_LOCALVERSION_AUTO=y$/# CONFIG_LOCALVERSION_AUTO is not set/' \
       ${../firmware}/kernel.config > "$out"
@@ -46,8 +55,7 @@ in
       src = fetchFromGitHub {
         inherit (source) owner repo rev hash;
       };
-      inherit configfile;
-      allowImportFromDerivation = true;
+      inherit config configfile;
     })).overrideAttrs (old: {
     passthru =
       old.passthru
