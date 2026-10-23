@@ -16,8 +16,9 @@ Boards live at `<vendor>/<board>/`, using nixos-hardware's layout.
 4. **Example.** Add `examples/<vendor>-<board>.nix`: the smallest config that
    boots to a shell.
 5. **Flake.** Add the module to `nixosModules`, the packages to `overlays.default`
-   and `packages`, and one entry to `checks.aarch64-linux`. CI and the updater
-   pick the board up from those.
+   and `packages`, and one entry to `checks.<system>` for the system that
+   builds it: `aarch64-linux` for ARM64 boards (native), `x86_64-linux` for
+   32-bit ones (cross). CI and the updater pick the board up from those.
 6. **Proof.** The PR needs a serial log of the example image booting on real
    hardware.
 

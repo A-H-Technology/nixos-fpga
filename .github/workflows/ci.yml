@@ -14,8 +14,8 @@ permissions:
   statuses: write
 
 jobs:
-  # One leg per entry in checks.aarch64-linux, so adding a board to the flake is
-  # all it takes to get it built and cached.
+  # One leg per entry in checks.<system>, on a runner native to that system, so
+  # adding a board to the flake is all it takes to get it built and cached.
   matrix:
     runs-on: ubuntu-latest
     outputs:
@@ -25,7 +25,14 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@main
       - run: nix flake check --no-build --all-systems
       - id: checks
-        run: echo "checks=$(nix eval --json .#checks.aarch64-linux --apply builtins.attrNames)" >> "$GITHUB_OUTPUT"
+        run: |
+          checks=$(nix eval --json .#checks --apply '
+            cs: builtins.concatLists (builtins.attrValues (builtins.mapAttrs (system: byName:
+              map (name: {
+                inherit system name;
+                runner = {aarch64-linux = "ubuntu-24.04-arm"; x86_64-linux = "ubuntu-latest";}.${system};
+              }) (builtins.attrNames byName)) cs))')
+          echo "checks=$checks" >> "$GITHUB_OUTPUT"
 
   build:
     needs: matrix
@@ -33,9 +40,11 @@ jobs:
       fail-fast: false
       matrix:
         check: ${{ fromJSON(needs.matrix.outputs.checks) }}
-    # Vendor kernels are never on cache.nixos.org, so each leg can be a full
-    # from-source kernel build; native ARM keeps that at ~25 min, not hours.
-    runs-on: ubuntu-24.04-arm
+    # Vendor kernels and anything cross-built are never on cache.nixos.org, so
+    # each leg can be a full from-source build; native runners keep the kernel
+    # at ~25 min, not hours under emulation.
+    name: ${{ matrix.check.system }}.${{ matrix.check.name }}
+    runs-on: ${{ matrix.check.runner }}
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +58,7 @@ jobs:
         with:
           name: nixos-fpga
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-      - run: nix build ".#checks.aarch64-linux.${{ matrix.check }}" --print-build-logs
+      - run: nix build ".#checks.${{ matrix.check.system }}.${{ matrix.check.name }}" --print-build-logs
 
   # Dispatched runs don't attach checks to the PR on their own; post a status on
   # the commit so the result shows up there, and merge what doesn't need a human.

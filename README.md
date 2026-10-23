@@ -13,14 +13,16 @@ These boards need things nixos-hardware doesn't handle:
 | Board | SoC | Module | Status |
 |-------|-----|--------|--------|
 | [Terasic DE25-Nano](terasic/de25-nano) | Intel Agilex 5 | `terasic-de25-nano` | HPS boots NixOS. The fabric isn't managed yet. |
+| [Digilent Zybo](digilent/zybo) (original, not Z7) | AMD Zynq-7010 | `digilent-zybo` | PS side, cross-built from x86_64. Not yet booted on hardware. |
 
 Each board has a README covering how to use it, its console, boot chain and
 known limits.
 
 ## Binary cache
 
-CI builds every board's kernel and example image on native ARM runners and
-pushes them to cachix. Add the cache, or every vendor kernel gets built from
+CI builds every board's kernel and example image and pushes them to cachix.
+aarch64 boards build on native ARM runners. 32-bit boards are cross-built on
+x86_64, so their cache hits need `nixpkgs.buildPlatform = "x86_64-linux"`. Add the cache, or every vendor kernel gets built from
 source on your machine:
 
 ```nix
@@ -47,7 +49,7 @@ A daily job bumps nixpkgs and runs every package's `updateScript`
   DE25-Nano as the first implementation.
 - U-Boot built from source for the DE25-Nano.
 - The mainline kernel once the DE25-Nano DTB is upstreamed.
-- More boards (Zynq / Kria, other Agilex and Cyclone SoC kits).
+- More boards (Kria, the Zybo Z7, other Agilex and Cyclone SoC kits).
 
 ## Contributing
 
