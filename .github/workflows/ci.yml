@@ -48,7 +48,11 @@ jobs:
     # Job-level so the cachix step's `if` can see it; secrets can't go in `if`.
     env:
       CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
-    timeout-minutes: 240
+    # The cross-built armv7l legs compile their whole closure, nothing of which
+    # Hydra caches: the Zybo got ~356 packages in at 240 min and was cut off
+    # without a single failure. 350 leaves headroom under GitHub's 360 cap; the
+    # cache, once it exists, makes this moot for anything unchanged.
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
       # The runner's default free space doesn't fit a kernel build tree plus its

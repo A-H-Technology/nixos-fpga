@@ -11,7 +11,8 @@
 
     # aarch64 boards build natively (CI uses GitHub's ARM runners). 32-bit ARM
     # boards are cross-built from x86_64 instead: Hydra caches nothing for
-    # armv7l, and those runners can't execute AArch32 code. Tooling runs anywhere.
+    # armv7l, so a native build compiles everything anyway, and cross keeps it
+    # on whatever x86 machine is at hand. Tooling runs anywhere.
     toolSystems = ["x86_64-linux" "aarch64-linux"];
     forToolSystems = f: lib.genAttrs toolSystems (s: f nixpkgs.legacyPackages.${s});
 
