@@ -13,7 +13,7 @@ These boards need things nixos-hardware doesn't handle:
 | Board | SoC | Module | Status |
 |-------|-----|--------|--------|
 | [Terasic DE25-Nano](terasic/de25-nano) | Intel Agilex 5 | `terasic-de25-nano` | HPS boots NixOS. The fabric isn't managed yet. |
-| [Digilent Zybo](digilent/zybo) (original, not Z7) | AMD Zynq-7010 | `digilent-zybo` | PS side, cross-built from x86_64. Not yet booted on hardware. |
+| [Digilent Zybo](digilent/zybo) (original, not Z7) | AMD Zynq-7010 | `digilent-zybo` | Boots NixOS from SD, cross-built from x86_64. The fabric loads from Linux through `common/fpga`, by hand or at boot. On hardware 2026-10-24. |
 
 Each board has a README covering how to use it, its console, boot chain and
 known limits.
@@ -44,9 +44,9 @@ A daily job bumps nixpkgs and runs every package's `updateScript`
 
 ## Roadmap
 
-- **`common/fpga/`:** a vendor-neutral `hardware.fpga` layer for loading
-  bitstreams at boot through fpga-manager and device-tree overlays, with the
-  DE25-Nano as the first implementation.
+- **`common/fpga/` on the DE25-Nano:** the vendor-neutral `hardware.fpga`
+  layer exists, with the Zybo as its first board. The DE25-Nano is next.
+  Device-tree overlays for what a design adds to the PS are still to come.
 - U-Boot built from source for the DE25-Nano.
 - The mainline kernel once the DE25-Nano DTB is upstreamed.
 - More boards (Kria, the Zybo Z7, other Agilex and Cyclone SoC kits).

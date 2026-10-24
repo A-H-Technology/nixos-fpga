@@ -10,7 +10,8 @@ VGA port and just says "ZYBO" on the silkscreen. This module covers the PS
 - gigabit ethernet
 - microSD
 
-The PL fabric is left unconfigured.
+The PL fabric is loaded from Linux, through [common/fpga](../../common/fpga):
+`/dev/fpga-load` by hand, or `hardware.fpga.bitstream` at every boot.
 
 ## Use it
 
@@ -84,10 +85,33 @@ All options live under `hardware.digilent.zybo`:
 The kernel is NixOS's usual `boot.kernelPackages`, so set that directly to
 change it.
 
+The fabric's options are `hardware.fpga.*` ([common/fpga](../../common/fpga)).
+This module sets the manager (the devcfg block, driver `zynq-fpga`, which
+nixpkgs' kernel builds as a module). Set `hardware.fpga.bitstream` to load a
+design at boot.
+
+## Loading the fabric
+
+The Zynq driver takes a `.bit`'s payload with every 32-bit word byte-swapped.
+[chipsmith](https://github.com/A-H-Technology/chipsmith) writes that format
+as `build/<name>.bin` and loads it over ssh with `chipsmith flash --ssh HOST`;
+the ssh user needs to be in the `fpga` group.
+
+A design must drive the PS7's `IRQF2P[19:16]` low. Those are the ARM cores'
+FIQ and IRQ, straight from the fabric and active high, and an interconnect
+input nothing drives reads as 1. A PL-only design that doesn't instantiate a
+PS7 (Vivado's included) therefore holds FIQ on both cores, and once the load
+turns the PL->PS level shifters on, Linux hangs with both cores in the FIQ
+handler. chipsmith ties them off in every design. U-Boot enables the same
+level shifters, so the hang also hits a board booting with such a design
+already loaded over JTAG.
+
 ## Known limits
 
 - **Kernel and U-Boot follow nixpkgs.** Unlike a vendor-forked board, a nixpkgs
   bump moves both, and the update workflow doesn't label that
   `needs-hardware-test`. That's the same bet nixos-hardware makes for
   upstreamed boards.
-- **Fabric unmanaged.** Loading a bitstream waits on `common/fpga/`.
+- **Bitstreams only.** A design that adds devices to the PS (AXI
+  peripherals, PL interrupts) needs a device-tree overlay too, which
+  `common/fpga` doesn't do yet.

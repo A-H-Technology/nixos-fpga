@@ -1,6 +1,7 @@
 # Digilent Zybo (the original, 2014 — not the Zybo Z7), a Zynq-7010 board. This
 # configures the PS side: 2x Cortex-A9 at 650 MHz, 512 MB DDR3, gigabit ethernet,
-# microSD. The PL fabric is left unconfigured.
+# microSD. The PL fabric is loaded from Linux through ../../common/fpga, and
+# left unconfigured unless hardware.fpga.bitstream is set.
 #
 # Boot chain, all of it built from mainline source:
 #
@@ -21,6 +22,8 @@
 }: let
   cfg = config.hardware.digilent.zybo;
 in {
+  imports = [../../common/fpga];
+
   options.hardware.digilent.zybo = {
     uboot = lib.mkOption {
       type = lib.types.package;
@@ -47,6 +50,13 @@ in {
       # The DT aliases uart1 (the one wired to the FT2232) as serial0, which the
       # Cadence driver names ttyPS0.
       kernelParams = ["console=ttyPS0,115200"];
+    };
+
+    # nixpkgs' kernel builds the Zynq fpga-manager driver (zynq-fpga) as a
+    # module, and the devcfg node in the DTB loads it.
+    hardware.fpga = {
+      manager = "xlnx,zynq-devcfg-1.0";
+      driver = "zynq-fpga";
     };
 
     # sd-image.nix switches this on for unknown machines, and with it
