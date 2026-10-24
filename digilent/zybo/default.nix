@@ -55,12 +55,21 @@ in {
     # is =y in multi_v7_defconfig, so it boots without any of that.
     hardware.enableAllHardware = lib.mkForce false;
 
+    # nixos-generate-config bakes in bcachefs-tools, and 1.39.7 doesn't compile
+    # with a 32-bit time_t: https://github.com/koverstreet/bcachefs-tools/issues/1087
+    # Remove once nixpkgs ships a release with "fusemount: build on targets with
+    # a 32 bit time_t". The board's config is written elsewhere and deployed, so
+    # nothing on it needs the generator anyway.
+    system.tools.nixos-generate-config.enable = lib.mkDefault false;
+
     # Setting a name makes extlinux.conf carry an explicit FDT line. Zynq's U-Boot
     # environment has no fdtfile, so FDTDIR alone would go looking for a DTB
-    # named after the SoC and board that doesn't exist.
+    # named after the SoC and board that doesn't exist. No xilinx/ prefix: 32-bit
+    # ARM selects ARCH_WANT_FLAT_DTB_INSTALL, so the kernel's dtbs output is flat
+    # even though the sources live under arch/arm/boot/dts/xilinx/.
     hardware.deviceTree = {
       enable = true;
-      name = "xilinx/zynq-zybo.dtb";
+      name = "zynq-zybo.dtb";
     };
   };
 }

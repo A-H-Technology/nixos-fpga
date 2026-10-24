@@ -69,7 +69,7 @@ BootROM reads BOOT.BIN from the card's first (FAT) partition
 ```
 
 There are no vendor blobs, and nothing comes from Vivado. U-Boot ships the
-Zybo's `ps7_init_gpl.c` in-tree, and the kernel and DTB (`xilinx/zynq-zybo.dtb`)
+Zybo's `ps7_init_gpl.c` in-tree, and the kernel and DTB (`zynq-zybo.dtb`)
 are nixpkgs' mainline LTS. Every generation is bootable from the extlinux
 menu, so rollback works as on any NixOS machine.
 
