@@ -5,8 +5,8 @@ import it and set the two board-specific options; users set at most one.
 
 | Option | Set by | What it's for |
 |--------|--------|---------------|
-| `hardware.fpga.manager` | the board module | DT compatible of the node the board's fpga-manager driver binds to (`xlnx,zynq-devcfg-1.0` on a Zynq). |
-| `hardware.fpga.driver` | the board module | Kernel module of that driver (`zynq-fpga`), loaded before `fpga-load` so the manager is there first. |
+| `hardware.fpga.manager` | the board module | DT compatible of the node the board's fpga-manager driver binds to (`xlnx,zynq-devcfg-1.0` on a Zynq, `intel,agilex5-soc-fpga-mgr` on an Agilex 5). |
+| `hardware.fpga.driver` | the board module | Kernel module of that driver (`zynq-fpga`, `stratix10-soc`), loaded before `fpga-load` so the manager is there first. |
 | `hardware.fpga.bitstream` | you | A bitstream to load at every boot, in the format the board's manager takes. `null` (the default) leaves the fabric as the boot chain left it. |
 
 ## /dev/fpga-load
@@ -35,5 +35,7 @@ with `chipsmith flash --ssh HOST`.
 
 - [Digilent Zybo](../../digilent/zybo): Zynq devcfg (PCAP). Loaded on hardware
   2026-10-24.
-- Terasic DE25-Nano: not wired up yet. Its kernel has the Stratix 10 SoC
-  manager (`FPGA_MGR_STRATIX10_SOC`), which goes through the SDM.
+- [Terasic DE25-Nano](../../terasic/de25-nano#fabric): the Stratix 10/Agilex
+  SDM manager (`stratix10-soc`). It takes an HPS-first `.core.rbf`, and only
+  after the board booted the matching HPS-first phase 1. Loaded on hardware
+  2026-11-09.

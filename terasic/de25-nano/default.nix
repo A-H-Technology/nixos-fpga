@@ -1,6 +1,7 @@
 # Terasic DE25-Nano, an Agilex 5 SoC FPGA dev board. This configures the HPS
 # side: 2x Cortex-A76 + 2x Cortex-A55, ~957 MB LPDDR4, gigabit ethernet, microSD.
-# The FPGA fabric sits alongside and is not managed from here.
+# The fabric loads from Linux through ../../common/fpga, but only when the board
+# booted an HPS-first image (see ./README.md, "Fabric").
 #
 # Boot chain:
 #
@@ -26,6 +27,8 @@
 }: let
   cfg = config.hardware.terasic.de25-nano;
 in {
+  imports = [../../common/fpga];
+
   options.hardware.terasic.de25-nano = {
     kernel = lib.mkOption {
       type = lib.types.package;
@@ -102,6 +105,14 @@ in {
     boot.initrd = {
       includeDefaultModules = false;
       availableKernelModules = lib.mkForce [];
+    };
+
+    # Terasic's config builds the Stratix 10/Agilex SDM manager as a module
+    # (FPGA_MGR_STRATIX10_SOC=m); the DTB's svc/fpga-mgr node loads it. It takes
+    # an HPS-first .core.rbf only: see ./README.md, "Fabric".
+    hardware.fpga = {
+      manager = "intel,agilex5-soc-fpga-mgr";
+      driver = "stratix10-soc";
     };
 
     hardware.deviceTree = {
