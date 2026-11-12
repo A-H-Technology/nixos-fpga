@@ -7,7 +7,7 @@
 #
 #   QSPI (SDM reads at power-on: HPS-first phase 1 = HPS I/O + DDR/EMIF setup + U-Boot SPL)
 #     -> SPL loads u-boot.itb from the SD card's FAT partition
-#       -> ./boot-script.nix: env fixups, `bridge enable`, then sysboot
+#       -> ./boot-script.nix: env fixups, then sysboot
 #         -> /boot/extlinux/extlinux.conf on the ext4 root (NixOS generations)
 #
 # The QSPI half is phase 1 (./phase1.nix, README.md "Phase 1"): this repo's SPL
@@ -46,10 +46,13 @@ in {
 
     fpgaBridges.enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = ''
-        Run `bridge enable` before booting, bringing up the HPS<->FPGA bridges.
-        Without it any access to the fabric from Linux faults.
+        Run `bridge enable` in U-Boot, for a board whose QSPI holds an
+        FPGA-first image (the fabric configured before the HPS boots). With
+        this module's HPS-first phase 1 the fabric doesn't exist yet at that
+        point and U-Boot aborts the command; loading a .core.rbf from Linux
+        brings the bridges up instead (README.md, "Fabric").
       '';
     };
 

@@ -50,10 +50,9 @@ it from elsewhere, and set `nix.settings.max-jobs = 1` in its config.
 Serial only, `ttyS0` at 115200 8N1. HDMI is driven from the fabric, so there's
 no display unless your FPGA design provides one.
 
-A good boot shows these lines on serial, then extlinux's menu:
+A good boot shows this line on serial, then extlinux's menu:
 
 ```
-de25-nano: enabling HPS<->FPGA bridges
 de25-nano: handing off to extlinux on mmc 0:2
 ```
 
@@ -62,7 +61,7 @@ de25-nano: handing off to extlinux on mmc 0:2
 ```
 QSPI (read by the SDM at power-on: HPS-first phase 1, U-Boot SPL)          <- phase1.nix
   -> SPL loads u-boot.itb from the card's FAT partition                     <- stock blob
-    -> boot.scr.uimg: sets ramdisk_addr_r, `bridge enable`, sysboot          <- generated
+    -> boot.scr.uimg: sets ramdisk_addr_r, sysboot                         <- generated
       -> /boot/extlinux/extlinux.conf on the ext4 root                       <- NixOS generations
 ```
 
@@ -125,10 +124,19 @@ booted from it after a power cycle with no JTAG. A chipsmith-built
 `.core.rbf` then loaded from Linux (examples/de25-irq: GIC bit 17 at 3.0 Hz,
 bit 20 25 % high).
 
-In HPS-first mode, the boot script's `bridge enable` runs before the fabric
-exists. U-Boot prints `FPGA not ready. Bridge reset aborted!` and boots on, so
-the HPS-to-FPGA bridges stay down after a load from Linux. Interrupts from the
-fabric still reach the GIC.
+The HPS-to-FPGA bridges come up with the core. Before a load the reset
+manager holds all four in reset (`BRGMODRST`, 0x10d1102c, reads `0xF`); after
+a `.core.rbf` loads through `/dev/fpga-load` it reads `0x0`, and the
+lightweight bridge carries traffic with no driver and no ATF call. Tested
+2026-11-12 with designs/hpsf's core from agilex5-re, which answers on it:
+`devmem 0x20000000` reads `0x48505346` ("HPSF") and `0x20000004` the design's
+50 MHz counter. The lightweight bridge is the first 512 MiB of the fabric
+window at 0x20000000. A read there with no core answering (or none loaded)
+hangs the bus until the HPS is reset.
+
+U-Boot's `bridge enable` (`fpgaBridges.enable`) is off by default: in an
+HPS-first boot it runs before the fabric exists, and U-Boot prints `FPGA not
+ready. Bridge reset aborted!`.
 
 Loaded on hardware 2026-11-09: a GHRD-HPS design's `.core.rbf` (1015808 bytes)
 loaded in 2.1 s and reloaded. The manager reported `operating` with a clean
@@ -142,7 +150,7 @@ All options live under `hardware.terasic.de25-nano`:
 |--------|---------|---------------|
 | `kernel` | Terasic's `linux-socfpga` fork, stock config | Use `.override`/`.overrideAttrs` to change it. A different kernel means building it yourself. |
 | `uboot` | stock `u-boot.itb` ([provenance](PROVENANCE.md)) | Any package with a `u-boot.itb` at its root. |
-| `fpgaBridges.enable` | `true` | Runs `bridge enable` in U-Boot. Without it, Linux faults on any fabric access. |
+| `fpgaBridges.enable` | `false` | Runs `bridge enable` in U-Boot, for an FPGA-first QSPI image. HPS-first, the core's load raises the bridges. |
 | `bootScript.extraCommands` | `""` | U-Boot commands run just before extlinux. |
 
 The fabric's options are `hardware.fpga.*` ([common/fpga](../../common/fpga)).

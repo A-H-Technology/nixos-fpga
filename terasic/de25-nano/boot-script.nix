@@ -2,7 +2,7 @@
 #
 # Terasic's stock script hardcodes fatload+booti, which throws away NixOS
 # generations. This one fixes up the environment, optionally raises the
-# HPS<->FPGA bridges, and then hands off to the extlinux.conf NixOS maintains on
+# HPS<->FPGA bridges (FPGA-first QSPI images only), and then hands off to the extlinux.conf NixOS maintains on
 # the ext4 root, so every generation stays bootable.
 #
 # Getting this script *run* at all takes the partition-flag trick in
@@ -39,8 +39,10 @@
 
   script = lib.concatStringsSep "\n" (
     ["setenv ramdisk_addr_r ${ramdiskAddr};"]
-    # Without this the HPS<->FPGA bridges stay down and any fabric access
-    # faults. Only worth skipping if the bitstream in QSPI doesn't expect them.
+    # Only for an FPGA-first QSPI image, whose fabric already exists here.
+    # HPS-first (this repo's phase 1), the core loads from Linux later and
+    # that load raises the bridges; U-Boot would print "FPGA not ready.
+    # Bridge reset aborted!".
     ++ lib.optionals fpgaBridges [
       ''echo "de25-nano: enabling HPS<->FPGA bridges";''
       "bridge enable;"
