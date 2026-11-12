@@ -60,7 +60,7 @@ de25-nano: handing off to extlinux on mmc 0:2
 ## Boot chain
 
 ```
-QSPI (read by the SDM at power-on: bitstream or HPS-first phase 1, U-Boot SPL)  <- untouched
+QSPI (read by the SDM at power-on: HPS-first phase 1, U-Boot SPL)          <- phase1.nix
   -> SPL loads u-boot.itb from the card's FAT partition                     <- stock blob
     -> boot.scr.uimg: sets ramdisk_addr_r, `bridge enable`, sysboot          <- generated
       -> /boot/extlinux/extlinux.conf on the ext4 root                       <- NixOS generations
@@ -90,12 +90,39 @@ conditions apply, both from the Agilex 5 boot model:
   hash (`quartus_pfg -i design.core.rbf`) matches the phase-1 image the board
   booted. In practice, every design must instantiate the same HPS IP.
 
-The phase-1 image (`design.hps.rbf`: HPS I/O, HPS EMIF, U-Boot SPL) comes from
-QSPI as a `.jic`, or over JTAG for testing:
-`quartus_pgm -m jtag -o "p;design.hps.rbf"`. The SPL in it must be built with a
-compiler old enough to fit and run. Terasic's `de25_nano_revA_v1.0` SPL built
-with GCC 16 prints nothing and hangs. Built with Arm GNU 11.2-2022.02 (the
-toolchain Terasic documents), it boots this module's stock `u-boot.itb`.
+The phase-1 image (HPS I/O, HPS EMIF, U-Boot SPL) comes from QSPI as a `.jic`,
+or over JTAG for testing. See [Phase 1](#phase-1).
+
+## Phase 1
+
+`phase1-terasic-de25-nano` builds it with no Quartus:
+
+```sh
+nix build github:A-H-Technology/nixos-fpga#phase1-terasic-de25-nano
+quartus_pgm -c "DE25-Nano [3-10-iface0]" -m jtag -o "p;result/qspi.jic@1"   # into QSPI
+quartus_pgm -c "DE25-Nano [3-10-iface0]" -m jtag -o "p;result/hps.rbf"      # or for one boot
+```
+
+The SPL is `uboot-spl-terasic-de25-nano`, Terasic's `de25_nano_revA_v1.0`
+source built by nixpkgs' compiler. The rest comes from
+[agilex5-re](https://github.com/cramt/agilex5-re)'s `phase1/de25-nano`:
+Quartus' build of the board's HPS I/O and EMIF settings, with Altera's SDM
+firmware. [chipsmith](https://github.com/A-H-Technology/chipsmith) puts the
+SPL into it and packs the `.jic`, so the result keeps that build's HPS IO hash
+(`result/hps_io_hash`). Every `.core.rbf` built against `result/shell.txt`
+loads after it.
+
+The SPL has to be built without frame pointers, which nixpkgs' compiler wrapper
+otherwise forces on aarch64. Terasic's `save_boot_params` is C, and `start.S`
+calls it before there is a stack. With a frame record it writes through the
+reset SP and the SPL hangs before printing anything (bisected on the board,
+2026-11-12; `uboot-spl.nix` has the details). An earlier GCC 16 build failed
+the same way, not because of the compiler's age.
+
+Booted on hardware 2026-11-12 over JTAG: SPL, DDR calibration, ATF, the stock
+`u-boot.itb` and NixOS up to the login prompt. The board's QSPI holds the
+same phase 1 with Terasic's own SPL build (Arm GNU 11.2), written as the
+`.jic` this package's format reproduces byte for byte.
 
 In HPS-first mode, the boot script's `bridge enable` runs before the fabric
 exists. U-Boot prints `FPGA not ready. Bridge reset aborted!` and boots on, so
@@ -129,4 +156,5 @@ This module sets the manager and driver. `hardware.fpga.bitstream` takes a
 - **Vendor kernel only.** The board's DTB exists only in Terasic's fork. The
   kernel tracks Terasic's `de25-nano-6.12.11-lts` branch, and new kernel base
   branches are adopted by hand after a hardware test.
-- **Stock U-Boot.** See [PROVENANCE.md](PROVENANCE.md).
+- **Stock U-Boot proper.** The SPL builds from source, U-Boot proper and ATF
+  are still the stock `u-boot.itb`. See [PROVENANCE.md](PROVENANCE.md).

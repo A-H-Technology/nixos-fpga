@@ -5,14 +5,14 @@
 #
 # Boot chain:
 #
-#   QSPI (SDM reads at power-on: FPGA bitstream + U-Boot SPL + DDR/EMIF setup)
+#   QSPI (SDM reads at power-on: HPS-first phase 1 = HPS I/O + DDR/EMIF setup + U-Boot SPL)
 #     -> SPL loads u-boot.itb from the SD card's FAT partition
 #       -> ./boot-script.nix: env fixups, `bridge enable`, then sysboot
 #         -> /boot/extlinux/extlinux.conf on the ext4 root (NixOS generations)
 #
-# The QSPI half is deliberately untouched. Regenerating it needs Quartus Prime
-# Pro (proprietary, x86-only, not in nixpkgs), and it carries the DDR controller
-# config — without a valid one the ARM cores have no working RAM.
+# The QSPI half is phase 1 (./phase1.nix, README.md "Phase 1"): this repo's SPL
+# in agilex5-re's build of the board's HPS I/O and EMIF, which carries the DDR
+# controller config. Writing it to QSPI is a manual quartus_pgm step.
 #
 # Serial is the only console (115200 on ttyS0); HDMI is driven from the fabric,
 # so there is no framebuffer unless an FPGA design provides one.
