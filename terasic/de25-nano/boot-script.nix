@@ -2,8 +2,9 @@
 #
 # Terasic's stock script hardcodes fatload+booti, which throws away NixOS
 # generations. This one fixes up the environment, optionally raises the
-# HPS<->FPGA bridges (FPGA-first QSPI images only), and then hands off to the extlinux.conf NixOS maintains on
-# the ext4 root, so every generation stays bootable.
+# HPS<->FPGA bridges (FPGA-first QSPI images only), and then hands off to the
+# extlinux.conf NixOS maintains on the ext4 root, so every generation stays
+# bootable.
 #
 # Getting this script *run* at all takes the partition-flag trick in
 # ./sd-image.nix — see the comment there.
