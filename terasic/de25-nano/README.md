@@ -119,10 +119,11 @@ reset SP and the SPL hangs before printing anything (bisected on the board,
 2026-11-12; `uboot-spl.nix` has the details). An earlier GCC 16 build failed
 the same way, not because of the compiler's age.
 
-Booted on hardware 2026-11-12 over JTAG: SPL, DDR calibration, ATF, the stock
-`u-boot.itb` and NixOS up to the login prompt. The board's QSPI holds the
-same phase 1 with Terasic's own SPL build (Arm GNU 11.2), written as the
-`.jic` this package's format reproduces byte for byte.
+Booted on hardware 2026-11-12: over JTAG (SPL, DDR calibration, ATF, the
+stock `u-boot.itb`, NixOS up to the login prompt), then written to QSPI and
+booted from it after a power cycle with no JTAG. A chipsmith-built
+`.core.rbf` then loaded from Linux (examples/de25-irq: GIC bit 17 at 3.0 Hz,
+bit 20 25 % high).
 
 In HPS-first mode, the boot script's `bridge enable` runs before the fabric
 exists. U-Boot prints `FPGA not ready. Bridge reset aborted!` and boots on, so
