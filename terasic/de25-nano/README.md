@@ -134,6 +134,13 @@ lightweight bridge carries traffic with no driver and no ATF call. Tested
 window at 0x20000000. A read there with no core answering (or none loaded)
 hangs the bus until the HPS is reset.
 
+`/dev/uio*` named `lwhps2fpga` (`lwBridgeUio`, on by default) maps the bottom
+64 KiB of the lightweight bridge window and takes `f2h_irq0[0]` as its
+interrupt, so a userspace driver for a register block in the fabric can sleep
+in `read()` instead of polling. `f2h_irq0[n]` is GIC SPI 17 + n. The node is
+a device-tree overlay and `uio_pdrv_genirq` is told its compatible
+(`of_id=generic-uio`).
+
 U-Boot's `bridge enable` (`fpgaBridges.enable`) is off by default: in an
 HPS-first boot it runs before the fabric exists, and U-Boot prints `FPGA not
 ready. Bridge reset aborted!`.
@@ -151,6 +158,8 @@ All options live under `hardware.terasic.de25-nano`:
 | `kernel` | Terasic's `linux-socfpga` fork, stock config | Use `.override`/`.overrideAttrs` to change it. A different kernel means building it yourself. |
 | `uboot` | stock `u-boot.itb` ([provenance](PROVENANCE.md)) | Any package with a `u-boot.itb` at its root. |
 | `fpgaBridges.enable` | `false` | Runs `bridge enable` in U-Boot, for an FPGA-first QSPI image. HPS-first, the core's load raises the bridges. |
+| `lwBridgeUio.enable` | `true` | `/dev/uio*` "lwhps2fpga" over the lightweight bridge, with an f2h_irq0 interrupt. |
+| `lwBridgeUio.size` / `.irq` | `65536` / `0` | Bytes mapped from 0x20000000; which f2h_irq0 bit. |
 | `bootScript.extraCommands` | `""` | U-Boot commands run just before extlinux. |
 
 The fabric's options are `hardware.fpga.*` ([common/fpga](../../common/fpga)).

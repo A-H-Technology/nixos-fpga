@@ -56,6 +56,31 @@ in {
       '';
     };
 
+    lwBridgeUio = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          A generic-uio device (/dev/uioN, name "lwhps2fpga") over the bottom
+          of the lightweight HPS-to-FPGA bridge window, with one FPGA-to-HPS
+          interrupt: a register block in the fabric, driven from userspace,
+          that can sleep on an interrupt instead of polling. Mapping it is
+          harmless; reading it with no core loaded, or one that doesn't answer
+          there, hangs the HPS bus (README.md, "Fabric").
+        '';
+      };
+      size = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 65536;
+        description = "Bytes of the bridge window (from 0x20000000) the device maps; at most 512 MiB.";
+      };
+      irq = lib.mkOption {
+        type = lib.types.ints.between 0 31;
+        default = 0;
+        description = "Which f2h_irq0 bit is the device's interrupt (level, active high).";
+      };
+    };
+
     bootScript = {
       extraCommands = lib.mkOption {
         type = lib.types.lines;
@@ -121,8 +146,39 @@ in {
     hardware.deviceTree = {
       enable = true;
       name = "intel/socfpga_agilex5_de25_nano.dtb";
-      package = lib.mkDefault "${config.boot.kernelPackages.kernel}/dtbs";
+      # f2h_irq0[n] is GIC SPI 17 + n: with no fabric GICD_ISPENDR1 reads
+      # 0xFFFE0000, every one pending from bit 17 (INTID 49) up, and
+      # de25-irq's f2h_irq0[0] toggles bit 17.
+      overlays = lib.optional cfg.lwBridgeUio.enable {
+        name = "de25-nano-lwhps2fpga-uio";
+        dtsText = ''
+          /dts-v1/;
+          /plugin/;
+          / {
+            compatible = "intel,socfpga-agilex5";
+            fragment@0 {
+              target-path = "/";
+              __overlay__ {
+                lwhps2fpga-uio@20000000 {
+                  compatible = "generic-uio";
+                  reg = <0x0 0x20000000 0x0 ${toString cfg.lwBridgeUio.size}>;
+                  interrupt-parent = <&intc>;
+                  interrupts = <0 ${toString (17 + cfg.lwBridgeUio.irq)} 4>;
+                  linux,uio-name = "lwhps2fpga";
+                };
+              };
+            };
+          };
+        '';
+      };
     };
+
+    # uio_pdrv_genirq binds only the compatibles it's told to (it has no
+    # match table of its own).
+    boot.kernelModules = lib.mkIf cfg.lwBridgeUio.enable ["uio_pdrv_genirq"];
+    boot.extraModprobeConfig = lib.mkIf cfg.lwBridgeUio.enable ''
+      options uio_pdrv_genirq of_id=generic-uio
+    '';
 
     # Terasic's config has `# CONFIG_NF_TABLES is not set`, so the default
     # iptables-nft can only fail with "Failed to initialize nft: Protocol not
