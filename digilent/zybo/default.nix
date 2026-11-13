@@ -31,6 +31,30 @@ in {
       defaultText = lib.literalMD "mainline U-Boot, `xilinx_zynq_virt_defconfig` for `zynq-zybo`";
       description = "Package with `boot.bin` (the SPL, written as BOOT.BIN) and `u-boot.img` at its root.";
     };
+
+    gp0Uio = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          A generic-uio device (/dev/uioN, name "gp0") over the bottom of the
+          PS7's M_AXI_GP0 window, with one PL-to-PS interrupt: a register block
+          in the fabric, driven from userspace, that can sleep on an interrupt
+          instead of polling. Mapping it is harmless; reading it with no design
+          answering on GP0 hangs the bus.
+        '';
+      };
+      size = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 65536;
+        description = "Bytes of the GP0 window (from 0x40000000) the device maps; at most 1 GiB.";
+      };
+      irq = lib.mkOption {
+        type = lib.types.ints.between 0 7;
+        default = 0;
+        description = "Which IRQF2P[7:0] bit is the device's interrupt (level, active high).";
+      };
+    };
   };
 
   config = {
@@ -80,6 +104,37 @@ in {
     hardware.deviceTree = {
       enable = true;
       name = "zynq-zybo.dtb";
+      # IRQF2P[7:0] are GIC interrupt IDs 61..68 (Zynq TRM, table 7-4): SPI
+      # 29 + n in the device tree's numbering.
+      overlays = lib.optional cfg.gp0Uio.enable {
+        name = "zybo-gp0-uio";
+        dtsText = ''
+          /dts-v1/;
+          /plugin/;
+          / {
+            compatible = "xlnx,zynq-7000";
+            fragment@0 {
+              target-path = "/";
+              __overlay__ {
+                gp0-uio@40000000 {
+                  compatible = "generic-uio";
+                  reg = <0x40000000 ${toString cfg.gp0Uio.size}>;
+                  interrupt-parent = <&intc>;
+                  interrupts = <0 ${toString (29 + cfg.gp0Uio.irq)} 4>;
+                  linux,uio-name = "gp0";
+                };
+              };
+            };
+          };
+        '';
+      };
     };
+
+    # uio_pdrv_genirq binds only the compatibles it's told to (it has no
+    # match table of its own).
+    boot.kernelModules = lib.mkIf cfg.gp0Uio.enable ["uio_pdrv_genirq"];
+    boot.extraModprobeConfig = lib.mkIf cfg.gp0Uio.enable ''
+      options uio_pdrv_genirq of_id=generic-uio
+    '';
   };
 }

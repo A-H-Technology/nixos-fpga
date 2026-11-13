@@ -81,6 +81,8 @@ All options live under `hardware.digilent.zybo`:
 | Option | Default | What it's for |
 |--------|---------|---------------|
 | `uboot` | mainline, `xilinx_zynq_virt_defconfig` with `zynq-zybo` | Any package with `boot.bin` and `u-boot.img` at its root. |
+| `gp0Uio.enable` | `true` | `/dev/uio*` "gp0" over M_AXI_GP0, with an IRQF2P interrupt. |
+| `gp0Uio.size` / `.irq` | `65536` / `0` | Bytes mapped from 0x40000000; which IRQF2P[7:0] bit. |
 
 The kernel is NixOS's usual `boot.kernelPackages`, so set that directly to
 change it.
@@ -105,6 +107,14 @@ turns the PL->PS level shifters on, Linux hangs with both cores in the FIQ
 handler. chipsmith ties them off in every design. U-Boot enables the same
 level shifters, so the hang also hits a board booting with such a design
 already loaded over JTAG.
+
+`/dev/uio*` named `gp0` (`gp0Uio`, on by default) maps the bottom 64 KiB of
+the PS7's M_AXI_GP0 window at 0x40000000 and takes `IRQF2P[0]` as its
+interrupt, so a userspace driver for a register block in the fabric can sleep
+in `read()` instead of polling. `IRQF2P[7:0]` are GIC interrupt IDs 61-68,
+SPI 29-36 in the device tree. The node is a device-tree overlay, and
+`uio_pdrv_genirq` is told its compatible (`of_id=generic-uio`). A read in
+the window with no design answering on GP0 hangs the bus.
 
 ## Known limits
 
