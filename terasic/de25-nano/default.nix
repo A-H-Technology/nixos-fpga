@@ -44,6 +44,20 @@ in {
       description = "Package whose `u-boot.itb` is placed on the FAT partition for the SPL to load.";
     };
 
+    phase1HpsIoHash = lib.mkOption {
+      type = lib.types.nullOr (lib.types.strMatching "[0-9A-F]{64}");
+      default = null;
+      example = "D921CDF7CADFEECA11572B24600BFD337FFD119E47601CA5075AA911EEC3D07A";
+      description = ''
+        The HPS IO hash of the phase 1 in this board's QSPI (`quartus_pfg -i`;
+        the flake's module sets agilex5-re's `phase1/de25-nano`). Installed
+        as /etc/fpga/phase1/hps_io_hash, where `chipsmith flash --ssh` reads
+        it and refuses a core for another phase 1 (the SDM wedges on one).
+        It states what the system was built for: the QSPI is written by hand
+        (README.md, "Phase 1"), and the kernel can't read it back.
+      '';
+    };
+
     fpgaBridges.enable = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -101,6 +115,10 @@ in {
   };
 
   config = {
+    environment.etc."fpga/phase1/hps_io_hash" = lib.mkIf (cfg.phase1HpsIoHash != null) {
+      text = cfg.phase1HpsIoHash + "\n";
+    };
+
     assertions = [
       {
         assertion = pkgs.stdenv.hostPlatform.isAarch64;

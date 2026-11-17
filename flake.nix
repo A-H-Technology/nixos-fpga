@@ -53,7 +53,13 @@
       '';
   in {
     nixosModules = {
-      terasic-de25-nano = ./terasic/de25-nano;
+      # The phase 1 this flake builds (agilex5-re's phase1/de25-nano with our
+      # SPL) keeps that build's HPS IO hash.
+      terasic-de25-nano = {
+        imports = [./terasic/de25-nano];
+        hardware.terasic.de25-nano.phase1HpsIoHash =
+          lib.mkDefault (lib.fileContents "${agilex5-re}/phase1/de25-nano/hps_io_hash");
+      };
       terasic-de25-nano-sd-image = ./terasic/de25-nano/sd-image.nix;
       digilent-zybo = ./digilent/zybo;
       digilent-zybo-sd-image = ./digilent/zybo/sd-image.nix;

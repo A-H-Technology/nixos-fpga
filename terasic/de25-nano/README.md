@@ -157,6 +157,7 @@ All options live under `hardware.terasic.de25-nano`:
 |--------|---------|---------------|
 | `kernel` | Terasic's `linux-socfpga` fork, stock config | Use `.override`/`.overrideAttrs` to change it. A different kernel means building it yourself. |
 | `uboot` | stock `u-boot.itb` ([provenance](PROVENANCE.md)) | Any package with a `u-boot.itb` at its root. |
+| `phase1HpsIoHash` | the flake's phase 1's (agilex5-re `phase1/de25-nano`) | Installed as `/etc/fpga/phase1/hps_io_hash`: `chipsmith flash --ssh` refuses a core for another phase 1, which would wedge the SDM. It says what the system was built for; the QSPI is written by hand and Linux can't read it back. |
 | `fpgaBridges.enable` | `false` | Runs `bridge enable` in U-Boot, for an FPGA-first QSPI image. HPS-first, the core's load raises the bridges. |
 | `lwBridgeUio.enable` | `true` | `/dev/uio*` "lwhps2fpga" over the lightweight bridge, with an f2h_irq0 interrupt. |
 | `lwBridgeUio.size` / `.irq` | `65536` / `0` | Bytes mapped from 0x20000000; which f2h_irq0 bit. |
