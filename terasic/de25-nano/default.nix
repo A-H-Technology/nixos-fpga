@@ -207,7 +207,29 @@ in {
       # 0xFFFE0000, every one pending from bit 17 (INTID 49) up, and
       # de25-irq's f2h_irq0[0] toggles bit 17.
       overlays =
-        lib.optional cfg.lwBridgeUio.enable {
+        # Mainline's agilex5 dtsi gives the service layer no interrupt, so its
+        # SiP async replies are never signalled and the driver falls back to
+        # polling. Terasic's tree (and Altera's) wire it to SPI 0, which the
+        # SDM mailbox raises; on 6.12 that's "Registered IRQ 48 for sip async
+        # operations". Drop once socfpga_agilex5.dtsi carries it.
+        lib.optional (cfg.kernelSource == "mainline") {
+          name = "de25-nano-svc-irq";
+          dtsText = ''
+            /dts-v1/;
+            /plugin/;
+            / {
+              compatible = "intel,socfpga-agilex5";
+              fragment@0 {
+                target-path = "/firmware/svc";
+                __overlay__ {
+                  interrupt-parent = <&intc>;
+                  interrupts = <0 0 4>;
+                };
+              };
+            };
+          '';
+        }
+        ++ lib.optional cfg.lwBridgeUio.enable {
           name = "de25-nano-lwhps2fpga-uio";
           dtsText = ''
             /dts-v1/;

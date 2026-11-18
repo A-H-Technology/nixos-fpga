@@ -64,6 +64,13 @@ static int load(const void *buf, size_t len)
 	}
 	info->buf = buf;
 	info->count = len;
+	/*
+	 * Mainline's stratix10-soc waits exactly this long for RECONFIG_COMPLETED
+	 * (Terasic's 6.12 fork hardcoded 5 s), so the default 0 fails every load
+	 * right after the data goes out. of-fpga-region fills it from DT; we
+	 * have no region, so match the service layer's own 30 s status budget.
+	 */
+	info->config_complete_timeout_us = 30 * USEC_PER_SEC;
 
 	ret = fpga_mgr_lock(mgr);
 	if (ret)
