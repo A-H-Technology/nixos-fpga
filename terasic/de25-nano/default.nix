@@ -30,10 +30,24 @@ in {
   imports = [../../common/fpga];
 
   options.hardware.terasic.de25-nano = {
+    kernelSource = lib.mkOption {
+      type = lib.types.enum ["terasic" "mainline"];
+      default = "terasic";
+      description = ''
+        `terasic`: Terasic's linux-socfpga fork with the config they ship,
+        what the board is validated on. `mainline`: nixpkgs' kernel plus the
+        board's device tree (./kernel/mainline.nix), until it is upstream.
+        The DTB has the same name either way.
+      '';
+    };
+
     kernel = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ./kernel {};
-      defaultText = lib.literalMD "Terasic's linux-socfpga fork with the stock config";
+      default =
+        if cfg.kernelSource == "terasic"
+        then pkgs.callPackage ./kernel {}
+        else pkgs.callPackage ./kernel/mainline.nix {};
+      defaultText = lib.literalMD "the kernel `kernelSource` names";
       description = "Kernel to boot. Override the default with `.override` to change its config.";
     };
 
@@ -268,6 +282,6 @@ in {
     # iptables-nft can only fail with "Failed to initialize nft: Protocol not
     # supported". The legacy xtables backend is built (CONFIG_IP_NF_IPTABLES=m),
     # so use it instead of shipping a firewall that cannot start.
-    networking.firewall.package = lib.mkDefault pkgs.iptables-legacy;
+    networking.firewall.package = lib.mkIf (cfg.kernelSource == "terasic") (lib.mkDefault pkgs.iptables-legacy);
   };
 }

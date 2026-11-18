@@ -1,0 +1,44 @@
+From 1a2d5d51d36141b7e8f8e9e7f05989587e5c1b42 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alexandra=20=C3=98stermark?= <alex.cramt@gmail.com>
+Date: Wed, 18 Nov 2026 11:45:08 +0100
+Subject: [PATCH 3/5] arm64: dts: agilex5: add FPGA manager and region
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Lets Linux configure the fabric through the SDM, as on Agilex.
+
+Signed-off-by: Alexandra Østermark <alex.cramt@gmail.com>
+---
+ arch/arm64/boot/dts/intel/socfpga_agilex5.dtsi | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/intel/socfpga_agilex5.dtsi b/arch/arm64/boot/dts/intel/socfpga_agilex5.dtsi
+index 45df0f9ad..d2de1180d 100644
+--- a/arch/arm64/boot/dts/intel/socfpga_agilex5.dtsi
++++ b/arch/arm64/boot/dts/intel/socfpga_agilex5.dtsi
+@@ -85,9 +85,21 @@ svc {
+ 			method = "smc";
+ 			memory-region = <&service_reserved>;
+ 			iommus = <&smmu 10>;
++
++			fpga_mgr: fpga-mgr {
++				compatible = "intel,agilex5-soc-fpga-mgr",
++					     "intel,agilex-soc-fpga-mgr";
++			};
+ 		};
+ 	};
+ 
++	fpga-region {
++		compatible = "fpga-region";
++		#address-cells = <0x2>;
++		#size-cells = <0x2>;
++		fpga-mgr = <&fpga_mgr>;
++	};
++
+ 	psci {
+ 		compatible = "arm,psci-0.2";
+ 		method = "smc";
+-- 
+2.56.0
+

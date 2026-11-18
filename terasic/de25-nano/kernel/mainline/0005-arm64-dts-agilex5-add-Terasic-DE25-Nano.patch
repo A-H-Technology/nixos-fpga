@@ -1,0 +1,133 @@
+From 714efd3885a1c573cab179fd7f0f5252c18e1b09 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alexandra=20=C3=98stermark?= <alex.cramt@gmail.com>
+Date: Wed, 18 Nov 2026 11:45:09 +0100
+Subject: [PATCH 5/5] arm64: dts: agilex5: add Terasic DE25-Nano
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The DE25-Nano is an Agilex5 SoC FPGA board with gigabit ethernet, a
+microSD slot wired for 3.3 V only, USB and one HPS LED.
+
+Based on the device tree in Terasic's linux-socfpga fork, moved onto the
+SD6HC controller node.
+
+Signed-off-by: Alexandra Østermark <alex.cramt@gmail.com>
+---
+ arch/arm64/boot/dts/intel/Makefile            |  1 +
+ .../dts/intel/socfpga_agilex5_de25_nano.dts   | 91 +++++++++++++++++++
+ 2 files changed, 92 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/intel/socfpga_agilex5_de25_nano.dts
+
+diff --git a/arch/arm64/boot/dts/intel/Makefile b/arch/arm64/boot/dts/intel/Makefile
+index 270c70fdf..a3562aec8 100644
+--- a/arch/arm64/boot/dts/intel/Makefile
++++ b/arch/arm64/boot/dts/intel/Makefile
+@@ -8,6 +8,7 @@ dtb-$(CONFIG_ARCH_INTEL_SOCFPGA) += socfpga_agilex_n6000.dtb \
+ 				socfpga_agilex5_socdk_013b.dtb \
+ 				socfpga_agilex5_socdk_modular.dtb \
+ 				socfpga_agilex5_socdk_nand.dtb \
++				socfpga_agilex5_de25_nano.dtb \
+ 				socfpga_agilex72_socdk.dtb \
+ 				socfpga_agilex7m_socdk.dtb \
+ 				socfpga_n5x_socdk.dtb
+diff --git a/arch/arm64/boot/dts/intel/socfpga_agilex5_de25_nano.dts b/arch/arm64/boot/dts/intel/socfpga_agilex5_de25_nano.dts
+new file mode 100644
+index 000000000..8604e228e
+--- /dev/null
++++ b/arch/arm64/boot/dts/intel/socfpga_agilex5_de25_nano.dts
+@@ -0,0 +1,91 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (C) 2023, Intel Corporation
++ * Copyright (C) 2026, Alexandra Østermark
++ */
++#include "socfpga_agilex5.dtsi"
++
++/ {
++	model = "Terasic DE25-Nano";
++	compatible = "terasic,de25-nano", "intel,socfpga-agilex5";
++
++	aliases {
++		serial0 = &uart1;
++		ethernet0 = &gmac0;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		led-0 {
++			label = "hps_led0";
++			gpios = <&portb 17 GPIO_ACTIVE_LOW>;
++		};
++	};
++
++	memory@80000000 {
++		device_type = "memory";
++		/* We expect the bootloader to fill in the reg */
++		reg = <0x0 0x80000000 0x0 0x0>;
++	};
++};
++
++&gmac0 {
++	status = "okay";
++	phy-mode = "rgmii";
++	phy-handle = <&emac0_phy0>;
++	max-frame-size = <9000>;
++
++	mdio0 {
++		#address-cells = <1>;
++		#size-cells = <0>;
++		compatible = "snps,dwmac-mdio";
++
++		emac0_phy0: ethernet-phy@1 {
++			reg = <1>;
++		};
++	};
++};
++
++&gpio1 {
++	status = "okay";
++};
++
++&i2c1 {
++	status = "okay";
++};
++
++&osc1 {
++	clock-frequency = <25000000>;
++};
++
++&sdmmc {
++	status = "okay";
++	bus-width = <4>;
++	cap-sd-highspeed;
++	disable-wp;
++	no-1-8-v;
++	no-mmc;
++	no-sdio;
++};
++
++&smmu {
++	status = "okay";
++};
++
++&uart1 {
++	status = "okay";
++};
++
++&usb0 {
++	status = "okay";
++	disable-over-current;
++};
++
++&watchdog0 {
++	status = "okay";
++};
+-- 
+2.56.0
+

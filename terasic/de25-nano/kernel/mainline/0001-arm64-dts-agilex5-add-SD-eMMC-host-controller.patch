@@ -1,0 +1,44 @@
+From 336f3fef79e09a8dba2b5bcce2b3aba7dedad2fd Mon Sep 17 00:00:00 2001
+From: Tanmay Kathpalia <tanmay.kathpalia@altera.com>
+Date: Tue, 1 Sep 2026 11:48:11 -0700
+Subject: [PATCH 1/5] arm64: dts: agilex5: add SD/eMMC host controller
+
+The Agilex5 HPS includes a Cadence SD6HC that can drive either an SD
+card or eMMC. It uses separate SDMCLK (CIU) and L4_MP (BIU) clocks, and
+has three resets for the host controller, Combo PHY, and SDMMC OCP
+bridge.
+
+Signed-off-by: Tanmay Kathpalia <tanmay.kathpalia@altera.com>
+---
+ arch/arm64/boot/dts/intel/socfpga_agilex5.dtsi | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/intel/socfpga_agilex5.dtsi b/arch/arm64/boot/dts/intel/socfpga_agilex5.dtsi
+index f54767d15..45df0f9ad 100644
+--- a/arch/arm64/boot/dts/intel/socfpga_agilex5.dtsi
++++ b/arch/arm64/boot/dts/intel/socfpga_agilex5.dtsi
+@@ -300,6 +300,21 @@ portb: gpio-controller@0 {
+ 			};
+ 		};
+ 
++		sdmmc: mmc@10808000 {
++			compatible = "altr,agilex5-sd6hc", "cdns,sd6hc";
++			reg = <0x10808000 0x1000>;
++			clocks = <&clkmgr AGILEX5_SDMCLK>, <&clkmgr AGILEX5_L4_MP_CLK>;
++			clock-names = "ciu", "biu";
++			dma-coherent;
++			interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL_HIGH>;
++			iommus = <&smmu 5>;
++			resets = <&rst SDMMC_RESET>, <&rst COMBOPHY_RESET>,
++				 <&rst SDMMC_OCP_RESET>;
++			reset-names = "sdhc-reset", "combophy", "sdmmc-ocp";
++
++			status = "disabled";
++		};
++
+ 		nand: nand-controller@10b80000 {
+ 			compatible = "cdns,hp-nfc";
+ 			reg = <0x10b80000 0x10000>,
+-- 
+2.56.0
+

@@ -1,0 +1,42 @@
+From 8c0f61687949947bd4d7488fd330fe580161752a Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alexandra=20=C3=98stermark?= <alex.cramt@gmail.com>
+Date: Wed, 18 Nov 2026 11:45:07 +0100
+Subject: [PATCH 2/5] dt-bindings: fpga: stratix10-soc: add Agilex5
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Agilex5 configures the fabric through the same SDM mailbox protocol as
+Agilex. The one difference, that the SDM reaches the service buffers
+through the SMMU, is handled by the service layer's Agilex5 DMA
+allocation, so the Agilex compatible serves as a fallback.
+
+Signed-off-by: Alexandra Østermark <alex.cramt@gmail.com>
+---
+ .../bindings/fpga/intel,stratix10-soc-fpga-mgr.yaml    | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/fpga/intel,stratix10-soc-fpga-mgr.yaml b/Documentation/devicetree/bindings/fpga/intel,stratix10-soc-fpga-mgr.yaml
+index 6e536d6b2..fff88c8e5 100644
+--- a/Documentation/devicetree/bindings/fpga/intel,stratix10-soc-fpga-mgr.yaml
++++ b/Documentation/devicetree/bindings/fpga/intel,stratix10-soc-fpga-mgr.yaml
+@@ -20,9 +20,13 @@ description:
+ 
+ properties:
+   compatible:
+-    enum:
+-      - intel,stratix10-soc-fpga-mgr
+-      - intel,agilex-soc-fpga-mgr
++    oneOf:
++      - enum:
++          - intel,stratix10-soc-fpga-mgr
++          - intel,agilex-soc-fpga-mgr
++      - items:
++          - const: intel,agilex5-soc-fpga-mgr
++          - const: intel,agilex-soc-fpga-mgr
+ 
+ required:
+   - compatible
+-- 
+2.56.0
+

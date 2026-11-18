@@ -1,0 +1,28 @@
+From 5506cb777206a259875e2e768d8eeb32cf5d8e95 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Alexandra=20=C3=98stermark?= <alex.cramt@gmail.com>
+Date: Wed, 18 Nov 2026 11:45:08 +0100
+Subject: [PATCH 4/5] dt-bindings: arm: altera: add Terasic DE25-Nano
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: Alexandra Østermark <alex.cramt@gmail.com>
+---
+ Documentation/devicetree/bindings/arm/altera.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/arm/altera.yaml b/Documentation/devicetree/bindings/arm/altera.yaml
+index 3030cf46f..ed0ee3e2d 100644
+--- a/Documentation/devicetree/bindings/arm/altera.yaml
++++ b/Documentation/devicetree/bindings/arm/altera.yaml
+@@ -114,6 +114,7 @@ properties:
+               - intel,socfpga-agilex5-socdk-debug
+               - intel,socfpga-agilex5-socdk-modular
+               - intel,socfpga-agilex5-socdk-nand
++              - terasic,de25-nano
+           - const: intel,socfpga-agilex5
+ 
+       - description: Agilex72 boards
+-- 
+2.56.0
+

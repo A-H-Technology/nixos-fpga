@@ -170,7 +170,8 @@ All options live under `hardware.terasic.de25-nano`:
 
 | Option | Default | What it's for |
 |--------|---------|---------------|
-| `kernel` | Terasic's `linux-socfpga` fork, stock config | Use `.override`/`.overrideAttrs` to change it. A different kernel means building it yourself. |
+| `kernelSource` | `"terasic"` | `"mainline"` boots nixpkgs' kernel (7.4-rc) with the board's device tree patched in ([kernel/mainline.nix](kernel/mainline.nix)). Not hardware-tested yet. |
+| `kernel` | the one `kernelSource` names | Use `.override`/`.overrideAttrs` to change it. A different kernel means building it yourself. |
 | `uboot` | stock `u-boot.itb` ([provenance](PROVENANCE.md)) | Any package with a `u-boot.itb` at its root. |
 | `phase1HpsIoHash` | the flake's phase 1's (agilex5-re `phase1/de25-nano`) | Installed as `/etc/fpga/phase1/hps_io_hash`: `chipsmith flash --ssh` refuses a core for another phase 1, which would wedge the SDM. It says what the system was built for; the QSPI is written by hand and Linux can't read it back. |
 | `fpgaBridges.enable` | `false` | Runs `bridge enable` in U-Boot, for an FPGA-first QSPI image. HPS-first, the core's load raises the bridges. |
@@ -185,11 +186,15 @@ This module sets the manager and driver. `hardware.fpga.bitstream` takes a
 
 ## Known limits
 
-- **No nftables.** Terasic's config doesn't build it, so the module switches
-  the NixOS firewall to the iptables-legacy backend. `networking.nftables.enable`
-  won't work without a custom kernel config.
-- **Vendor kernel only.** The board's DTB exists only in Terasic's fork. The
-  kernel tracks Terasic's `de25-nano-6.12.11-lts` branch, and new kernel base
-  branches are adopted by hand after a hardware test.
+- **No nftables on Terasic's kernel.** Their config doesn't build it, so with
+  `kernelSource = "terasic"` the module switches the NixOS firewall to the
+  iptables-legacy backend. The mainline kernel has nftables.
+- **Mainline needs patches.** The board's DTB exists only in Terasic's fork.
+  Terasic's kernel tracks their `de25-nano-6.12.11-lts` branch, and new
+  kernel base branches are adopted by hand after a hardware test. The
+  mainline kernel carries Altera's SD controller node and our board DT
+  ([kernel/mainline](kernel/mainline)) until they land upstream. The SDM's
+  temperature and voltage sensors need no DT node there: the service layer
+  creates `socfpga-hwmon` itself.
 - **Stock U-Boot proper.** The SPL builds from source, U-Boot proper and ATF
   are still the stock `u-boot.itb`. See [PROVENANCE.md](PROVENANCE.md).
