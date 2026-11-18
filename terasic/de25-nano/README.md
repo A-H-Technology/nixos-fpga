@@ -102,6 +102,10 @@ quartus_pgm -c "DE25-Nano [3-10-iface0]" -m jtag -o "p;result/qspi.jic@1"   # in
 quartus_pgm -c "DE25-Nano [3-10-iface0]" -m jtag -o "p;result/hps.rbf"      # or for one boot
 ```
 
+"One boot" means it: after a JTAG load, a Linux reboot never reaches the SPL
+(2026-11-18: nothing on the console after `reboot: Restarting system`), so
+load it again or power-cycle. Booted from QSPI, a reboot comes back.
+
 The SPL is `uboot-spl-terasic-de25-nano`, Terasic's `de25_nano_revA_v1.0`
 source built by nixpkgs' compiler. The rest comes from
 [agilex5-re](https://github.com/cramt/agilex5-re)'s `phase1/de25-nano`:
@@ -141,6 +145,17 @@ in `read()` instead of polling. `f2h_irq0[n]` is GIC SPI 17 + n. The node is
 a device-tree overlay and `uio_pdrv_genirq` is told its compatible
 (`of_id=generic-uio`).
 
+The FPGA-to-HPS bridge (in phase 1 since 2026-11-18) also needs no enable,
+but every access goes through the SMMU under the stream ID the master puts on
+AxMMUSID. A stream Linux gave a device (1-10) faults, one nobody has is
+aborted; both answer SLVERR. `fpga2hpsStream` (on by default, stream 11)
+holds a stream with a generic-uio node (`/dev/uio*` "fpga2hps", no registers)
+and `fpga2hps-stream.service` switches its IOMMU group to `identity`, so a
+master using stream 11 reaches physical memory, coherent with the CPUs'
+caches if its accesses are shareable and write-back. Tested 2026-11-18 with
+chipsmith's examples/de25-f2h: the fabric writes and reads 16 pages of a
+process's buffer, every word right both ways with no cache maintenance.
+
 U-Boot's `bridge enable` (`fpgaBridges.enable`) is off by default: in an
 HPS-first boot it runs before the fabric exists, and U-Boot prints `FPGA not
 ready. Bridge reset aborted!`.
@@ -161,6 +176,7 @@ All options live under `hardware.terasic.de25-nano`:
 | `fpgaBridges.enable` | `false` | Runs `bridge enable` in U-Boot, for an FPGA-first QSPI image. HPS-first, the core's load raises the bridges. |
 | `lwBridgeUio.enable` | `true` | `/dev/uio*` "lwhps2fpga" over the lightweight bridge, with an f2h_irq0 interrupt. |
 | `lwBridgeUio.size` / `.irq` | `65536` / `0` | Bytes mapped from 0x20000000; which f2h_irq0 bit. |
+| `fpga2hpsStream.enable` / `.sid` | `true` / `11` | An identity SMMU stream for FPGA-to-HPS masters. |
 | `bootScript.extraCommands` | `""` | U-Boot commands run just before extlinux. |
 
 The fabric's options are `hardware.fpga.*` ([common/fpga](../../common/fpga)).

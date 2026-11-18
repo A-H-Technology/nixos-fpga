@@ -95,6 +95,28 @@ in {
       };
     };
 
+    fpga2hpsStream = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          An SMMU stream for the FPGA-to-HPS bridge, in an identity domain: a
+          fabric master that puts `sid` on AxMMUSID reaches physical memory,
+          coherent with the CPUs' caches when it marks its accesses shareable
+          and write-back. Any other stream ID faults (one Linux gave a
+          device) or is aborted (one nobody has); both answer SLVERR
+          (README.md, "Fabric"). A generic-uio device (name "fpga2hps") holds
+          the stream; fpga2hps-stream.service switches its IOMMU group to
+          identity at boot.
+        '';
+      };
+      sid = lib.mkOption {
+        type = lib.types.ints.between 11 63;
+        default = 11;
+        description = "The stream ID (1-10 are the HPS peripherals' and the service layer's).";
+      };
+    };
+
     bootScript = {
       extraCommands = lib.mkOption {
         type = lib.types.lines;
@@ -167,36 +189,80 @@ in {
       # f2h_irq0[n] is GIC SPI 17 + n: with no fabric GICD_ISPENDR1 reads
       # 0xFFFE0000, every one pending from bit 17 (INTID 49) up, and
       # de25-irq's f2h_irq0[0] toggles bit 17.
-      overlays = lib.optional cfg.lwBridgeUio.enable {
-        name = "de25-nano-lwhps2fpga-uio";
-        dtsText = ''
-          /dts-v1/;
-          /plugin/;
-          / {
-            compatible = "intel,socfpga-agilex5";
-            fragment@0 {
-              target-path = "/";
-              __overlay__ {
-                lwhps2fpga-uio@20000000 {
-                  compatible = "generic-uio";
-                  reg = <0x0 0x20000000 0x0 ${toString cfg.lwBridgeUio.size}>;
-                  interrupt-parent = <&intc>;
-                  interrupts = <0 ${toString (17 + cfg.lwBridgeUio.irq)} 4>;
-                  linux,uio-name = "lwhps2fpga";
+      overlays =
+        lib.optional cfg.lwBridgeUio.enable {
+          name = "de25-nano-lwhps2fpga-uio";
+          dtsText = ''
+            /dts-v1/;
+            /plugin/;
+            / {
+              compatible = "intel,socfpga-agilex5";
+              fragment@0 {
+                target-path = "/";
+                __overlay__ {
+                  lwhps2fpga-uio@20000000 {
+                    compatible = "generic-uio";
+                    reg = <0x0 0x20000000 0x0 ${toString cfg.lwBridgeUio.size}>;
+                    interrupt-parent = <&intc>;
+                    interrupts = <0 ${toString (17 + cfg.lwBridgeUio.irq)} 4>;
+                    linux,uio-name = "lwhps2fpga";
+                  };
                 };
               };
             };
-          };
-        '';
-      };
+          '';
+        }
+        ++ lib.optional cfg.fpga2hpsStream.enable {
+          name = "de25-nano-fpga2hps-stream";
+          dtsText = ''
+            /dts-v1/;
+            /plugin/;
+            / {
+              compatible = "intel,socfpga-agilex5";
+              fragment@0 {
+                target-path = "/";
+                __overlay__ {
+                  fpga2hps-stream {
+                    compatible = "generic-uio";
+                    iommus = <&smmu ${toString cfg.fpga2hpsStream.sid}>;
+                    linux,uio-name = "fpga2hps";
+                  };
+                };
+              };
+            };
+          '';
+        };
     };
 
     # uio_pdrv_genirq binds only the compatibles it's told to (it has no
     # match table of its own).
-    boot.kernelModules = lib.mkIf cfg.lwBridgeUio.enable ["uio_pdrv_genirq"];
-    boot.extraModprobeConfig = lib.mkIf cfg.lwBridgeUio.enable ''
+    boot.kernelModules = lib.mkIf (cfg.lwBridgeUio.enable || cfg.fpga2hpsStream.enable) ["uio_pdrv_genirq"];
+    boot.extraModprobeConfig = lib.mkIf (cfg.lwBridgeUio.enable || cfg.fpga2hpsStream.enable) ''
       options uio_pdrv_genirq of_id=generic-uio
     '';
+
+    # Linux gives the stream a DMA (translating) domain when uio binds it; a
+    # group's type can only change while its device is unbound, and there is
+    # no device-tree property for it, so: unbind, switch, bind again.
+    systemd.services.fpga2hps-stream = lib.mkIf cfg.fpga2hpsStream.enable {
+      description = "Identity SMMU domain for the FPGA-to-HPS bridge's stream";
+      wantedBy = ["multi-user.target"];
+      after = ["systemd-modules-load.service"];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        d=/sys/bus/platform/devices/fpga2hps-stream
+        for _ in $(seq 100); do [ -e $d/iommu_group ] && break; sleep 0.1; done
+        g=$(readlink -f $d/iommu_group)
+        [ "$(cat $g/type)" = identity ] && exit 0
+        [ -e $d/driver ] && echo fpga2hps-stream > $d/driver/unbind
+        echo identity > $g/type
+        echo fpga2hps-stream > /sys/bus/platform/drivers/uio_pdrv_genirq/bind
+        echo "stream ${toString cfg.fpga2hpsStream.sid}: $(cat $g/type)"
+      '';
+    };
 
     # Terasic's config has `# CONFIG_NF_TABLES is not set`, so the default
     # iptables-nft can only fail with "Failed to initialize nft: Protocol not

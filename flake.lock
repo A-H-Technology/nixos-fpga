@@ -6,11 +6,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1794502723,
-        "narHash": "sha256-OKyALk2T8ACMRWM7exsj0giueevQJfsS767u2iMwgGI=",
+        "lastModified": 1794990357,
+        "narHash": "sha256-BQ1DoUPQhgVW1u0vb2K4Z3xYF0RHZJffgnPOJCBlQUM=",
         "owner": "cramt",
         "repo": "agilex5-re",
-        "rev": "a74c1078787dfc9a2c821d68ad4088f24275783e",
+        "rev": "80c5d2eba0ec3d89b8d8131ae065d7c9fccb6893",
         "type": "github"
       },
       "original": {
