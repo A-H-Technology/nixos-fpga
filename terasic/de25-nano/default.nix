@@ -275,6 +275,15 @@ in {
 
     # uio_pdrv_genirq binds only the compatibles it's told to (it has no
     # match table of its own).
+    # Mainline's socfpga_hwmon times out on two Agilex 5 channels (0.8V VCC,
+    # Main Die SDM) on every read, and the stuck SiP async jobs pile up in
+    # BL31: within minutes of node-exporter scraping, every async send gets
+    # STATUS_ERROR and FPGA_CONFIG_START is refused, so no core loads until a
+    # power cycle (soft reboot hangs too). The svc interrupt above only slows
+    # it. Drop once the driver stops leaking jobs on timeout, after a load
+    # still works with hwmon scraped for an hour.
+    boot.blacklistedKernelModules = lib.mkIf (cfg.kernelSource == "mainline") ["socfpga_hwmon"];
+
     boot.kernelModules = lib.mkIf (cfg.lwBridgeUio.enable || cfg.fpga2hpsStream.enable) ["uio_pdrv_genirq"];
     boot.extraModprobeConfig = lib.mkIf (cfg.lwBridgeUio.enable || cfg.fpga2hpsStream.enable) ''
       options uio_pdrv_genirq of_id=generic-uio
