@@ -18,11 +18,17 @@
   fpgaBridges,
   extraCommands,
 }: let
+  # The stock environment puts the kernel at kernel_addr_r (0x82000000) and the
+  # FDT at fdt_addr_r (0x86000000), 64 MiB apart. Terasic's kernel fits; the
+  # mainline one with nixpkgs' config is ~72 MiB, and U-Boot refuses the entry
+  # with "FDT image overlaps OS image". Moving the FDT up gives the kernel a
+  # 128 MiB window. DRAM is 0x80000000..0xBFFFFFFF.
+  fdtAddr = "0x8a000000";
+
   # U-Boot loads a boot script at ${scriptaddr} (0x81000000), so sysboot must
   # stage extlinux.conf elsewhere or it overwrites the script mid-execution.
-  # DRAM is 0x80000000..0xBFFFFFFF; this clears kernel_addr_r (0x82000000) and
-  # fdt_addr_r (0x86000000).
-  syslinuxAddr = "0x88000000";
+  # 1 MiB past the FDT, below the ramdisk.
+  syslinuxAddr = "0x8a100000";
 
   # The stock U-Boot environment has no ramdisk_addr_r, and extlinux treats that
   # as fatal the moment an entry carries an INITRD line: it prints "missing
@@ -34,12 +40,15 @@
   # but saves to UBI, and there is no UBI ("Cannot find mtd partition root"), so
   # the script has to set it on every boot.
   #
-  # Placed above the kernel (37 MiB at 0x82000000), the FDT, and syslinuxAddr,
-  # with a ~25 MiB initrd fitting far inside the remaining 768 MiB.
+  # Placed above the kernel's window, the FDT, and syslinuxAddr, with a ~25 MiB
+  # initrd fitting far inside the remaining 768 MiB.
   ramdiskAddr = "0x90000000";
 
   script = lib.concatStringsSep "\n" (
-    ["setenv ramdisk_addr_r ${ramdiskAddr};"]
+    [
+      "setenv ramdisk_addr_r ${ramdiskAddr};"
+      "setenv fdt_addr_r ${fdtAddr};"
+    ]
     # Only for an FPGA-first QSPI image, whose fabric already exists here.
     # HPS-first (this repo's phase 1), the core loads from Linux later and
     # that load raises the bridges; U-Boot would print "FPGA not ready.

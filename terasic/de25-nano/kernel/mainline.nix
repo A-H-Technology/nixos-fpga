@@ -32,8 +32,9 @@ linux_testing.override (removeAttrs args ["lib" "linux_testing"]
       }) (lib.filesystem.listFilesRecursive ./mainline)
       ++ args.kernelPatches or [];
 
-    # The module empties the initrd (default.nix explains why), so the whole
-    # root path has to be built in, and nixpkgs builds the SD host as a module.
+    # The module empties the initrd (default.nix explains why) apart from
+    # mmc_block, so the SD host under it has to be built in; nixpkgs builds it
+    # as a module.
     structuredExtraConfig = with lib.kernel; {
       ARCH_INTEL_SOCFPGA = yes;
       MMC_SDHCI_PLTFM = yes;

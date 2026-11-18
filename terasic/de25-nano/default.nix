@@ -186,7 +186,10 @@ in {
     hardware.enableAllHardware = lib.mkForce false;
     boot.initrd = {
       includeDefaultModules = false;
-      availableKernelModules = lib.mkForce [];
+      # nixpkgs' kernel builds the MMC block layer as a module (Terasic's has it
+      # =y): without it the card shows up but mmcblk0 never does, and stage 1
+      # times out waiting for root.
+      availableKernelModules = lib.mkForce (lib.optional (cfg.kernelSource == "mainline") "mmc_block");
     };
 
     # Terasic's config builds the Stratix 10/Agilex SDM manager as a module
@@ -275,6 +278,37 @@ in {
         echo identity > $g/type
         echo fpga2hps-stream > /sys/bus/platform/drivers/uio_pdrv_genirq/bind
         echo "stream ${toString cfg.fpga2hpsStream.sid}: $(cat $g/type)"
+      '';
+    };
+
+    # The SD image writes the boot script to the FAT partition once, so without
+    # this a board keeps the script it was flashed with forever. Runs at every
+    # boot and, through restartIfChanged, on the switch that changes it, so a
+    # deploy lands the new script before the next reboot. An unchanged script
+    # never touches the FAT; a changed one goes in by rename.
+    systemd.services.de25-nano-boot-script = {
+      description = "Install the DE25-Nano U-Boot boot script on the FAT partition";
+      wantedBy = ["multi-user.target"];
+      after = ["local-fs.target"];
+      path = [pkgs.util-linux pkgs.coreutils pkgs.diffutils];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        PrivateMounts = true;
+      };
+      script = ''
+        m=$(mktemp -d)
+        mount -o rw /dev/disk/by-label/${config.sdImage.firmwarePartitionName or "DE25BOOT"} "$m"
+        if cmp -s ${cfg.bootScript.package} "$m/boot.scr.uimg"; then
+          echo "boot.scr.uimg up to date"
+        else
+          cp ${cfg.bootScript.package} "$m/boot.scr.uimg.new"
+          sync "$m/boot.scr.uimg.new"
+          mv "$m/boot.scr.uimg.new" "$m/boot.scr.uimg"
+          sync -f "$m"
+          echo "installed ${cfg.bootScript.package}"
+        fi
+        umount "$m"
       '';
     };
 
