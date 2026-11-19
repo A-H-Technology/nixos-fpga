@@ -1,0 +1,41 @@
+fix(intel): wrap the SiP V3 command descriptor search
+
+mailbox_get_free_cmd_desc() scans from a static free_index up to the end of
+the command queue and never wraps around: it resets free_index only when it
+is exactly MBOX_SVC_CMD_QUEUE_SIZE - 1 on entry. When the last two slots are
+busy, the scan leaves free_index at MBOX_SVC_CMD_QUEUE_SIZE, the reset never
+matches again, and every later V3 async send fails with MBOX_BUFFER_FULL
+until the next reset, however empty the queue is. On a DE25-Nano (Agilex 5)
+reading the SDM sensors through socfpga_hwmon while the FPGA is configured,
+it hit within two minutes.
+
+Search the whole queue circularly from the slot after the last one handed out.
+
+--- a/plat/intel/soc/common/soc/socfpga_mailbox.c
++++ b/plat/intel/soc/common/soc/socfpga_mailbox.c
+@@ -915,18 +915,16 @@
+ {
+ 	spin_lock(&mbox_db_lock);
+ 	static uint32_t free_index;
++	uint32_t count, index;
+ 
+-	/* Rollover the command queue free index */
+-	if (free_index == (MBOX_SVC_CMD_QUEUE_SIZE - 1)) {
+-		free_index = 0U;
+-	}
+-
+-	for (; free_index < MBOX_SVC_CMD_QUEUE_SIZE; free_index++) {
+-		if (!(mbox_svc.cmd_queue[free_index].flags &
++	for (count = 0U; count < MBOX_SVC_CMD_QUEUE_SIZE; count++) {
++		index = (free_index + count) % MBOX_SVC_CMD_QUEUE_SIZE;
++		if (!(mbox_svc.cmd_queue[index].flags &
+ 			MBOX_SVC_CMD_IS_USED)) {
+-			mbox_svc.cmd_queue[free_index].flags |= MBOX_SVC_CMD_IS_USED;
++			mbox_svc.cmd_queue[index].flags |= MBOX_SVC_CMD_IS_USED;
++			free_index = (index + 1U) % MBOX_SVC_CMD_QUEUE_SIZE;
+ 			spin_unlock(&mbox_db_lock);
+-			return &(mbox_svc.cmd_queue[free_index]);
++			return &(mbox_svc.cmd_queue[index]);
+ 		}
+ 	}
+ 

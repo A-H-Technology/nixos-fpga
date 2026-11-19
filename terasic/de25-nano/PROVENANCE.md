@@ -13,10 +13,16 @@ so the file on disk stays byte-identical to the vendor original.
 
 `u-boot.itb` is a GPL-2.0+ binary. Its corresponding source is Terasic's
 [u-boot-socfpga](https://github.com/terasic/u-boot-socfpga) and
-[arm-trusted-firmware](https://github.com/ARM-software/arm-trusted-firmware).
-Building it from source is on the roadmap. It isn't the default yet because a
-U-Boot that doesn't match the SPL in QSPI leaves the board unbootable until you
-reflash the card.
+[arm-trusted-firmware](https://github.com/terasic/arm-trusted-firmware)
+(branch `de25-nano-v2.12.0`, which reports `v2.12.0(release):de25_nano_revA_v1.0`).
+Building U-Boot proper from source is on the roadmap. It isn't the default yet
+because a U-Boot that doesn't match the SPL in QSPI leaves the board unbootable
+until you reflash the card.
+
+The mainline kernel's default (`uboot-bl31.nix`) unpacks this file, swaps
+only its BL31 for one built from Altera's TF-A, and packs it back into the
+same FIT layout, so U-Boot proper and its DTB stay byte-identical. Why is in
+the README's "BL31" section.
 
 **Don't add files to `firmware/`.** Nix copies the directory as a unit, so any
 change to its contents changes the kernel's store path and costs every user a

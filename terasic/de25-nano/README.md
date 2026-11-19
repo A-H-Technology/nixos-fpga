@@ -60,7 +60,7 @@ de25-nano: handing off to extlinux on mmc 0:2
 
 ```
 QSPI (read by the SDM at power-on: HPS-first phase 1, U-Boot SPL)          <- phase1.nix
-  -> SPL loads u-boot.itb from the card's FAT partition                     <- stock blob
+  -> SPL loads u-boot.itb from the card's FAT partition                     <- stock blob (BL31 rebuilt on mainline)
     -> boot.scr.uimg: sets ramdisk_addr_r, sysboot                         <- generated
       -> /boot/extlinux/extlinux.conf on the ext4 root                       <- NixOS generations
 ```
@@ -172,7 +172,7 @@ All options live under `hardware.terasic.de25-nano`:
 |--------|---------|---------------|
 | `kernelSource` | `"terasic"` | `"mainline"` boots nixpkgs' kernel (7.4-rc) with the board's device tree patched in ([kernel/mainline.nix](kernel/mainline.nix)). Not hardware-tested yet. |
 | `kernel` | the one `kernelSource` names | Use `.override`/`.overrideAttrs` to change it. A different kernel means building it yourself. |
-| `uboot` | stock `u-boot.itb` ([provenance](PROVENANCE.md)) | Any package with a `u-boot.itb` at its root. |
+| `uboot` | stock `u-boot.itb` ([provenance](PROVENANCE.md)); on mainline, with BL31 from Altera's TF-A ([below](#bl31)) | Any package with a `u-boot.itb` at its root. Installed on the FAT partition at boot and on every switch; the replaced one is kept as `u-boot.itb.prev`. |
 | `phase1HpsIoHash` | the flake's phase 1's (agilex5-re `phase1/de25-nano`) | Installed as `/etc/fpga/phase1/hps_io_hash`: `chipsmith flash --ssh` refuses a core for another phase 1, which would wedge the SDM. It says what the system was built for; the QSPI is written by hand and Linux can't read it back. |
 | `fpgaBridges.enable` | `false` | Runs `bridge enable` in U-Boot, for an FPGA-first QSPI image. HPS-first, the core's load raises the bridges. |
 | `lwBridgeUio.enable` | `true` | `/dev/uio*` "lwhps2fpga" over the lightweight bridge, with an f2h_irq0 interrupt. |
@@ -196,5 +196,49 @@ This module sets the manager and driver. `hardware.fpga.bitstream` takes a
   ([kernel/mainline](kernel/mainline)) until they land upstream. The SDM's
   temperature and voltage sensors need no DT node there: the service layer
   creates `socfpga-hwmon` itself.
-- **Stock U-Boot proper.** The SPL builds from source, U-Boot proper and ATF
-  are still the stock `u-boot.itb`. See [PROVENANCE.md](PROVENANCE.md).
+- **Stock U-Boot proper.** The SPL builds from source, U-Boot proper is still
+  the stock `u-boot.itb`, and so is BL31 on Terasic's kernel. See
+  [PROVENANCE.md](PROVENANCE.md).
+- **A bad `u-boot.itb` needs the card in another machine.** The SPL loads
+  exactly one file and has no fallback, so the board stays silent after
+  `## Checking hash(es) for Image fdt-0 ... OK`. Copy `u-boot.itb.prev` (or
+  `.stock`) back over `u-boot.itb` on the FAT partition.
+
+## BL31
+
+On `kernelSource = "mainline"` the stock `u-boot.itb` carries BL31 from
+Altera's TF-A (`socfpga_v2.15.0`, [bl31.nix](bl31.nix)) in place of Terasic's
+v2.12 build ([uboot-bl31.nix](uboot-bl31.nix) repacks it; U-Boot proper and
+its DTB are the stock bytes). Mainline's service layer breaks on the stock
+BL31 in two ways, both found on the board 2026-11-19:
+
+- An SiP async poll on a request the SDM hasn't finished returns
+  `STATUS_ERROR` (or a raw -2) instead of `NO_RESPONSE`, so the kernel reuses
+  a job ID that's still in flight and every hwmon read returns the previous
+  channel's value (the 1.8 V rail reads 0.83 V).
+- Synchronous calls (FPGA configuration) and async ones (hwmon) both read the
+  SDM's response FIFO and steal each other's responses: a load next to a
+  hwmon read fails, then fpga-mgr hangs waiting for buffers and the board
+  needs a power cycle (a soft reboot hangs too).
+
+Altera's tree defaults BL31's console to UART0, which hangs the DE25 silently
+right after the SPL; `SOCFPGA_UART_CONFIG=1` moves it to UART1, as Terasic's
+tree hardcodes. Two more fixes ride on top:
+
+- [bl31-cmd-desc-wrap.patch](bl31-cmd-desc-wrap.patch): BL31's command
+  descriptor search never wraps around, so once a scan finds the last two
+  slots busy (an FPGA load next to hwmon reads does it in minutes), every
+  async send fails with `MBOX_BUFFER_FULL` until a reboot. Still in Altera's
+  and upstream TF-A.
+- Kernel patch 0006, in socfpga-hwmon: a read that times out while the SDM is
+  busy (during a load) no longer frees a job ID the SDM still owes a response
+  to, which shifted every later reading by one channel.
+
+A soft reboot works on this BL31 even after the bugs above have struck; on the
+stock one it hung at `reboot: Restarting system` until a power cycle.
+
+Tested 2026-11-19 on a mainline 7.4-rc2 kernel: every sensor read in a loop
+for 10 minutes (17,115 reads) with a `.core.rbf` loaded every 15 s alongside
+(35 loads). Every load ended `operating`, every reading was in range, and the
+only misses were 144 `EAGAIN`s from the temperature sensor while the SDM was
+configuring. The same loop without loads: 17,003 reads, none bad.

@@ -53,8 +53,13 @@ in {
 
     uboot = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.callPackage ./uboot-stock.nix {};
-      defaultText = lib.literalMD "the stock `u-boot.itb` from Terasic's SD card image";
+      # Mainline's stratix10-svc needs a newer BL31 than the stock one
+      # (./bl31.nix says why). Terasic's kernel is only tested on stock.
+      default =
+        if cfg.kernelSource == "mainline"
+        then pkgs.callPackage ./uboot-bl31.nix {}
+        else pkgs.callPackage ./uboot-stock.nix {};
+      defaultText = lib.literalMD "the stock `u-boot.itb` from Terasic's SD card image, with BL31 from Altera's TF-A for `kernelSource = \"mainline\"`";
       description = "Package whose `u-boot.itb` is placed on the FAT partition for the SPL to load.";
     };
 
@@ -275,15 +280,6 @@ in {
 
     # uio_pdrv_genirq binds only the compatibles it's told to (it has no
     # match table of its own).
-    # Mainline's socfpga_hwmon times out on two Agilex 5 channels (0.8V VCC,
-    # Main Die SDM) on every read, and the stuck SiP async jobs pile up in
-    # BL31: within minutes of node-exporter scraping, every async send gets
-    # STATUS_ERROR and FPGA_CONFIG_START is refused, so no core loads until a
-    # power cycle (soft reboot hangs too). The svc interrupt above only slows
-    # it. Drop once the driver stops leaking jobs on timeout, after a load
-    # still works with hwmon scraped for an hour.
-    boot.blacklistedKernelModules = lib.mkIf (cfg.kernelSource == "mainline") ["socfpga_hwmon"];
-
     boot.kernelModules = lib.mkIf (cfg.lwBridgeUio.enable || cfg.fpga2hpsStream.enable) ["uio_pdrv_genirq"];
     boot.extraModprobeConfig = lib.mkIf (cfg.lwBridgeUio.enable || cfg.fpga2hpsStream.enable) ''
       options uio_pdrv_genirq of_id=generic-uio
@@ -312,13 +308,15 @@ in {
       '';
     };
 
-    # The SD image writes the boot script to the FAT partition once, so without
-    # this a board keeps the script it was flashed with forever. Runs at every
-    # boot and, through restartIfChanged, on the switch that changes it, so a
-    # deploy lands the new script before the next reboot. An unchanged script
-    # never touches the FAT; a changed one goes in by rename.
+    # The SD image writes u-boot.itb and the boot script to the FAT partition
+    # once, so without this a board keeps what it was flashed with forever.
+    # Runs at every boot and, through restartIfChanged, on the switch that
+    # changes either, so a deploy lands them before the next reboot. An
+    # unchanged file never touches the FAT; a changed one goes in by rename.
+    # A replaced u-boot.itb is kept as u-boot.itb.prev: the SPL has no
+    # fallback, so a bad one means copying that back from another machine.
     systemd.services.de25-nano-boot-script = {
-      description = "Install the DE25-Nano U-Boot boot script on the FAT partition";
+      description = "Install the DE25-Nano U-Boot image and boot script on the FAT partition";
       wantedBy = ["multi-user.target"];
       after = ["local-fs.target"];
       path = [pkgs.util-linux pkgs.coreutils pkgs.diffutils];
@@ -330,15 +328,23 @@ in {
       script = ''
         m=$(mktemp -d)
         mount -o rw /dev/disk/by-label/${config.sdImage.firmwarePartitionName or "DE25BOOT"} "$m"
-        if cmp -s ${cfg.bootScript.package} "$m/boot.scr.uimg"; then
-          echo "boot.scr.uimg up to date"
-        else
-          cp ${cfg.bootScript.package} "$m/boot.scr.uimg.new"
-          sync "$m/boot.scr.uimg.new"
-          mv "$m/boot.scr.uimg.new" "$m/boot.scr.uimg"
+        install_file() { # source, name on the FAT, name to keep the old one as
+          if cmp -s "$1" "$m/$2"; then
+            echo "$2 up to date"
+            return
+          fi
+          cp "$1" "$m/$2.new"
+          sync "$m/$2.new"
+          if [ -n "''${3:-}" ] && [ -e "$m/$2" ]; then
+            cp "$m/$2" "$m/$3"
+            sync "$m/$3"
+          fi
+          mv "$m/$2.new" "$m/$2"
           sync -f "$m"
-          echo "installed ${cfg.bootScript.package}"
-        fi
+          echo "installed $1 as $2"
+        }
+        install_file ${cfg.uboot}/u-boot.itb u-boot.itb u-boot.itb.prev
+        install_file ${cfg.bootScript.package} boot.scr.uimg
         umount "$m"
       '';
     };

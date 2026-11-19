@@ -70,6 +70,7 @@
       linuxPackages-terasic-de25-nano = final.linuxPackagesFor final.linux-terasic-de25-nano;
       linux-terasic-de25-nano-mainline = final.callPackage ./terasic/de25-nano/kernel/mainline.nix {};
       uboot-terasic-de25-nano-stock = final.callPackage ./terasic/de25-nano/uboot-stock.nix {};
+      uboot-terasic-de25-nano-bl31 = final.callPackage ./terasic/de25-nano/uboot-bl31.nix {};
       uboot-spl-terasic-de25-nano = final.callPackage ./terasic/de25-nano/uboot-spl.nix {};
       phase1-terasic-de25-nano = de25Phase1 final;
       uboot-digilent-zybo = final.callPackage ./digilent/zybo/uboot.nix {};
@@ -101,7 +102,7 @@
       aarch64-linux = let
         overlaid = self.overlays.default aarch64Pkgs aarch64Pkgs;
       in {
-        inherit (overlaid) linux-terasic-de25-nano linux-terasic-de25-nano-mainline uboot-terasic-de25-nano-stock uboot-spl-terasic-de25-nano phase1-terasic-de25-nano;
+        inherit (overlaid) linux-terasic-de25-nano linux-terasic-de25-nano-mainline uboot-terasic-de25-nano-stock uboot-terasic-de25-nano-bl31 uboot-spl-terasic-de25-nano phase1-terasic-de25-nano;
         sd-image-terasic-de25-nano =
           sdImageOf aarch64Pkgs "terasic-de25-nano"
           self.nixosConfigurations.terasic-de25-nano-example.config;
@@ -114,6 +115,7 @@
       # also cross from x86_64. A native armv7l builder gets cache misses.
       x86_64-linux = {
         uboot-spl-terasic-de25-nano = x86Pkgs.pkgsCross.aarch64-multiplatform.callPackage ./terasic/de25-nano/uboot-spl.nix {};
+        uboot-terasic-de25-nano-bl31 = x86Pkgs.pkgsCross.aarch64-multiplatform.callPackage ./terasic/de25-nano/uboot-bl31.nix {};
         # A quick compile check of the patches and config on an x86 machine;
         # the image itself is the native aarch64 one.
         linux-terasic-de25-nano-mainline = x86Pkgs.pkgsCross.aarch64-multiplatform.callPackage ./terasic/de25-nano/kernel/mainline.nix {};

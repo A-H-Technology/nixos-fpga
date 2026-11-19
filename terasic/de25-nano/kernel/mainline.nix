@@ -6,8 +6,10 @@
 # https://lore.kernel.org/r/20260901184828.15653-1-tanmay.kathpalia@altera.com).
 # 0002-0005 are ours and are going upstream once this boots: the FPGA
 # manager node (no driver change, since the service layer already maps its
-# buffers through the SMMU) and the board itself. Drop each patch as the
-# kernel it applies to gains it; when all five are gone, so is this file.
+# buffers through the SMMU) and the board itself. 0006, also ours, stops
+# socfpga-hwmon from freeing the job ID of a read that timed out while the SDM
+# still owes it a response (../README.md, "BL31"). Drop each patch as the
+# kernel it applies to gains it; when all six are gone, so is this file.
 #
 # linux_testing because 7.4 is still an rc; switch to linux_latest once it
 # ships.
