@@ -8,7 +8,10 @@
 }: let
   cfg = config.hardware.terasic.de25-nano;
 in {
-  imports = ["${modulesPath}/installer/sd-card/sd-image.nix"];
+  imports = [
+    "${modulesPath}/installer/sd-card/sd-image.nix"
+    ../../common/sd-expand-root.nix
+  ];
 
   sdImage = {
     compressImage = lib.mkDefault false;

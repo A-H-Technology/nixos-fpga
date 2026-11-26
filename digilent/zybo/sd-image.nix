@@ -9,7 +9,10 @@
 }: let
   cfg = config.hardware.digilent.zybo;
 in {
-  imports = ["${modulesPath}/installer/sd-card/sd-image.nix"];
+  imports = [
+    "${modulesPath}/installer/sd-card/sd-image.nix"
+    ../../common/sd-expand-root.nix
+  ];
 
   sdImage = {
     compressImage = lib.mkDefault false;
