@@ -8,8 +8,11 @@
 # manager node (no driver change, since the service layer already maps its
 # buffers through the SMMU) and the board itself. 0006, also ours, stops
 # socfpga-hwmon from freeing the job ID of a read that timed out while the SDM
-# still owes it a response (../README.md, "BL31"). Drop each patch as the
-# kernel it applies to gains it; when all six are gone, so is this file.
+# still owes it a response (../README.md, "BL31"). 0007 is James Clark's
+# (https://lore.kernel.org/all/20261126031300.211248-1-jjc@jclark.com/): the
+# XGMAC corrupts received IPv4 fragments with split header on, so
+# `ping -s 2000` to any LAN host comes back corrupted. Drop each patch as the
+# kernel it applies to gains it; when all seven are gone, so is this file.
 #
 # linux_testing because 7.4 is still an rc; switch to linux_latest once it
 # ships.

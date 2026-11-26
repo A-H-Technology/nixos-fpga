@@ -1,0 +1,56 @@
+From git@z Thu Jan  1 00:00:00 1970
+Subject: [PATCH] net: stmmac: dwmac-socfpga: disable split header on Agilex
+ 5
+From: James Clark <jjc@jclark.com>
+Date: Thu, 26 Nov 2026 10:13:00 +0700
+Message-Id: <20261126031300.211248-1-jjc@jclark.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+On Agilex 5, received IPv4 fragments are corrupted when RX checksum
+offload is on.
+
+This was observed as corrupted downloads on a Terasic DE25-Nano over
+a PPPoE connection with TCP MSS not clamped. It can be reproduced by
+running ping -s 2000 to another host on the LAN: ping reports every
+reply as corrupted.
+
+Agilex 5 has an XGMAC core, and stmmac turns split header on whenever
+RX checksum offload is on.
+
+Set STMMAC_FLAG_SPH_DISABLE for Agilex 5. Other glue drivers set this
+flag already. The same failure with fragmented ping is described in
+commit 47f753c1108e ("net: stmmac: disable Split Header (SPH) for Intel
+platforms"), which noted that according to the DesignWare Ethernet
+QoS (not XGMAC) datasheet, split header is not supported for IPv4
+fragments.
+
+With the flag set, fragments are received intact.
+
+Fixes: 93d46ea3e984 ("net: stmmac: socfpga: Agilex5 EMAC platform configuration")
+Cc: stable@vger.kernel.org
+Signed-off-by: James Clark <jjc@jclark.com>
+---
+I used an LLM coding assistant to help prepare this patch.
+
+ drivers/net/ethernet/stmicro/stmmac/dwmac-socfpga.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/net/ethernet/stmicro/stmmac/dwmac-socfpga.c b/drivers/net/ethernet/stmicro/stmmac/dwmac-socfpga.c
+index 3a89c4da2af5..28ffa5ad12d7 100644
+--- a/drivers/net/ethernet/stmicro/stmmac/dwmac-socfpga.c
++++ b/drivers/net/ethernet/stmicro/stmmac/dwmac-socfpga.c
+@@ -578,6 +578,9 @@ static void socfpga_agilex5_setup_plat_dat(struct socfpga_dwmac *dwmac)
+ 	/* Enable TSO */
+ 	plat_dat->flags |= STMMAC_FLAG_TSO_EN;
+ 
++	/* Disable split header */
++	plat_dat->flags |= STMMAC_FLAG_SPH_DISABLE;
++
+ 	/* Enable TBS */
+ 	switch (plat_dat->tx_queues_to_use) {
+ 	case 8:
+-- 
+2.56.1
+
